@@ -16,20 +16,30 @@ public sealed class ProfileChanged() : EventWrapper<ProfileChanged.Type, Profile
         Renamed,
         Toggled,
         PriorityChanged,
+
         AddedCharacter,
         RemovedCharacter,
+
         AddedTemplate,
         RemovedTemplate,
         EnabledTemplate,
         DisabledTemplate,
         MovedTemplate,
         ChangedTemplate,
+
         ReloadedAll,
         WriteProtection,
         ChangedDefaultProfile,
         ChangedDefaultLocalPlayerProfile,
         TemporaryProfileAdded,
-        TemporaryProfileDeleted
+        TemporaryProfileDeleted,
+
+        EnabledConditions, // changes the whole conditions feature on a profile
+        DisabledConditions,
+        ModifiedConditions,
+        EnabledCondition, // changes just one specific condition on a profile
+        DisabledCondition,
+        RemovedCondition
     }
 
     public enum Priority

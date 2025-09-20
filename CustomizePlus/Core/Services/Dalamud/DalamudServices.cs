@@ -26,6 +26,7 @@ public class DalamudServices
             .AddDalamudService<IGameInteropProvider>(pi)
             .AddDalamudService<IKeyState>(pi)
             .AddDalamudService<IDataManager>(pi)
+            .AddDalamudService<ITextureProvider>(pi)
             .AddDalamudService<IPluginLog>(pi)
             .AddDalamudService<ITargetManager>(pi)
             .AddDalamudService<INotificationManager>(pi)

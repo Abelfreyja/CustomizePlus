@@ -8,6 +8,7 @@ using CustomizePlus.GameData.Extensions;
 using CustomizePlus.Profiles;
 using CustomizePlus.Profiles.Data;
 using CustomizePlus.Profiles.Events;
+using CustomizePlus.Profiles.Services;
 using CustomizePlus.Templates.Events;
 using Dalamud.Plugin.Services;
 using OtterGui.Classes;
@@ -36,6 +37,7 @@ public unsafe sealed class ArmatureManager : IDisposable
     private readonly GPoseService _gposeService;
     private readonly ArmatureChanged _event;
     private readonly EmoteService _emoteService;
+    private readonly ConditionService _conditionService;
 
     /// <summary>
     /// This is a movement flag for every object. Used to prevent calls to ApplyRootTranslation from both movement and render hooks.
@@ -44,6 +46,8 @@ public unsafe sealed class ArmatureManager : IDisposable
     private readonly bool[] _objectMovementFlagsArr = new bool[1000];
 
     public Dictionary<ActorIdentifier, Armature> Armatures { get; private set; } = new();
+
+    private readonly Dictionary<(ActorIdentifier, Profile), bool> _gearConditionState = new();
 
     public ArmatureManager(
         ProfileManager profileManager,
@@ -57,7 +61,8 @@ public unsafe sealed class ArmatureManager : IDisposable
         ActorManager actorManager,
         GPoseService gposeService,
         ArmatureChanged @event,
-        EmoteService emoteService)
+        EmoteService emoteService,
+        ConditionService conditionService)
     {
         _profileManager = profileManager;
         _objectTable = objectTable;
@@ -71,6 +76,7 @@ public unsafe sealed class ArmatureManager : IDisposable
         _gposeService = gposeService;
         _event = @event;
         _emoteService = emoteService;
+        _conditionService = conditionService;
 
         _templateChangedEvent.Subscribe(OnTemplateChange, TemplateChanged.Priority.ArmatureManager);
         _profileChangedEvent.Subscribe(OnProfileChange, ProfileChanged.Priority.ArmatureManager);
@@ -90,6 +96,7 @@ public unsafe sealed class ArmatureManager : IDisposable
         try
         {
             RefreshArmatures();
+            DetectGearChanges();
             ApplyArmatureTransforms();
         }
         catch (Exception ex)
@@ -503,6 +510,14 @@ public unsafe sealed class ArmatureManager : IDisposable
             type is not ProfileChanged.Type.AddedCharacter &&
             type is not ProfileChanged.Type.RemovedCharacter &&
             type is not ProfileChanged.Type.PriorityChanged &&
+
+            type is not ProfileChanged.Type.EnabledConditions &&
+            type is not ProfileChanged.Type.DisabledConditions &&
+            type is not ProfileChanged.Type.ModifiedConditions &&
+            type is not ProfileChanged.Type.EnabledCondition &&
+            type is not ProfileChanged.Type.DisabledCondition &&
+            type is not ProfileChanged.Type.RemovedCondition &&
+
             type is not ProfileChanged.Type.ChangedDefaultProfile &&
             type is not ProfileChanged.Type.ChangedDefaultLocalPlayerProfile)
             return;
@@ -666,4 +681,55 @@ public unsafe sealed class ArmatureManager : IDisposable
                 yield return kvPair.Value;
         }
     }
+
+    // might not be very optimal to do this every render frame, but for now it will do
+    private void DetectGearChanges()
+    {
+        foreach (var (identifier, data) in _objectManager)
+        {
+            var actorId = identifier.CreatePermanent();
+            if (!actorId.IsValid)
+                continue;
+
+            var profiles = _profileManager.Profiles
+                .Where(p =>
+                    p.Enabled &&
+                    p.ConditionsEnabled &&
+                    p.Characters.Any(c => c.MatchesIgnoringOwnership(actorId)) &&
+                    p.Conditions.OfType<GearCondition>().Any(c => c.Enabled))
+                .ToList();
+
+            if (profiles.Count == 0)
+                continue;
+
+            var actor = data.Objects.FirstOrDefault();
+            if (actor.Address == IntPtr.Zero)
+                continue;
+
+            bool shouldRebind = false;
+
+            foreach (var profile in profiles)
+            {
+                var key = (actorId, profile);
+                var currentSatisfied = _conditionService.IsProfileConditionMet(profile, actorId);
+
+                if (_gearConditionState.TryGetValue(key, out var previousSatisfied))
+                {
+                    if (previousSatisfied != currentSatisfied)
+                    {
+                        _logger.Debug($"Gear condition changed for {actorId.IncognitoDebug()}, rebinding for profile '{profile.Name.Text}'.");
+                        shouldRebind = true;
+                    }
+                }
+
+                _gearConditionState[key] = currentSatisfied;
+            }
+
+            if (shouldRebind && Armatures.TryGetValue(actorId, out var armature))
+            {
+                armature.IsPendingProfileRebind = true;
+            }
+        }
+    }
+
 }

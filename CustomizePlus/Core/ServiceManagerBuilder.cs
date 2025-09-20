@@ -15,6 +15,7 @@ using CustomizePlus.GameData.Services;
 using CustomizePlus.Interop.Ipc;
 using CustomizePlus.Profiles;
 using CustomizePlus.Profiles.Events;
+using CustomizePlus.Profiles.Services;
 using CustomizePlus.Templates;
 using CustomizePlus.Templates.Events;
 using CustomizePlus.UI;
@@ -156,6 +157,7 @@ public static class ServiceManagerBuilder
         services
             .AddSingleton<PenumbraIpcHandler>()
             .AddSingleton<PcpService>()
+            .AddSingleton<ModService>()
             .AddSingleton<IpcHandler>(provider =>
             {
                 var subscribers = new List<IIpcSubscriber>
@@ -199,7 +201,9 @@ public static class ServiceManagerBuilder
         services
             .AddSingleton<GameObjectService>()
             .AddSingleton<GameStateService>()
-            .AddSingleton<EmoteService>();
+            .AddSingleton<EmoteService>()
+            .AddSingleton<GearDataService>()
+            .AddSingleton<GearSlotIconService>();
 
         return services;
     }
@@ -207,6 +211,7 @@ public static class ServiceManagerBuilder
     private static ServiceManager AddProfileServices(this ServiceManager services)
     {
         services
+            .AddSingleton<ConditionService>()
             .AddSingleton<ProfileManager>()
             .AddSingleton<ProfileFileSystem>()
             .AddSingleton<TemplateEditorManager>();

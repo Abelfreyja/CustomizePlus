@@ -1,26 +1,31 @@
-﻿using Dalamud.Interface;
-using Dalamud.Interface.Utility;
+﻿using CustomizePlus.Configuration.Data;
+using CustomizePlus.Core.Data;
+using CustomizePlus.Core.Services;
+using CustomizePlus.Game.Helpers;
+using CustomizePlus.Game.Services;
+using CustomizePlus.GameData.Extensions;
+using CustomizePlus.Interop.Ipc;
+using CustomizePlus.Profiles;
+using CustomizePlus.Profiles.Data;
+using CustomizePlus.Profiles.Enums;
+using CustomizePlus.Templates;
+using CustomizePlus.Templates.Events;
+using CustomizePlus.UI.Windows.Controls;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface;
+using Dalamud.Interface.Components;
+using Dalamud.Interface.Textures;
+using Dalamud.Interface.Utility;
+using Dalamud.Plugin.Services;
 using OtterGui;
-using OtterGui.Raii;
 using OtterGui.Extensions;
+using OtterGui.Raii;
+using Penumbra.GameData.Actors;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-using CustomizePlus.Profiles;
-using CustomizePlus.Configuration.Data;
-using CustomizePlus.Profiles.Data;
-using CustomizePlus.UI.Windows.Controls;
-using CustomizePlus.Templates;
-using CustomizePlus.Core.Data;
-using CustomizePlus.Templates.Events;
-using Penumbra.GameData.Actors;
-using Penumbra.String;
 using static FFXIVClientStructs.FFXIV.Client.LayoutEngine.ILayoutInstance;
-using CustomizePlus.GameData.Extensions;
-using CustomizePlus.Core.Extensions;
-using Dalamud.Interface.Components;
-using OtterGui.Extensions;
 
 namespace CustomizePlus.UI.Windows.MainWindow.Tabs.Profiles;
 
@@ -34,12 +39,18 @@ public class ProfilePanel
     private readonly ActorAssignmentUi _actorAssignmentUi;
     private readonly ActorManager _actorManager;
     private readonly TemplateEditorEvent _templateEditorEvent;
+    private readonly GearDataService _gearDataService;
+    private readonly GearSlotIconService _gearSlotIconService;
+    private readonly ITextureProvider _textureProvider;
+    private readonly PenumbraIpcHandler _penumbraIpc;
+    private readonly ModService _modService;
 
     private string? _newName;
     private int? _newPriority;
     private Profile? _changedProfile;
 
-    private Action? _endAction;
+    private System.Action? _endAction;
+    private Lumina.Excel.Sheets.Action? _luminaActionSheet;
 
     private int _dragIndex = -1;
 
@@ -54,7 +65,12 @@ public class ProfilePanel
         TemplateEditorManager templateEditorManager,
         ActorAssignmentUi actorAssignmentUi,
         ActorManager actorManager,
-        TemplateEditorEvent templateEditorEvent)
+        TemplateEditorEvent templateEditorEvent,
+        GearDataService gearDataService,
+        GearSlotIconService gearSlotIconService,
+        ITextureProvider textureProvider,
+        PenumbraIpcHandler penumbraIpc,
+        ModService modService)
     {
         _selector = selector;
         _manager = manager;
@@ -64,6 +80,11 @@ public class ProfilePanel
         _actorAssignmentUi = actorAssignmentUi;
         _actorManager = actorManager;
         _templateEditorEvent = templateEditorEvent;
+        _gearDataService = gearDataService;
+        _gearSlotIconService = gearSlotIconService;
+        _textureProvider = textureProvider;
+        _penumbraIpc = penumbraIpc;
+        _modService = modService;
     }
 
     public void Draw()
@@ -156,14 +177,21 @@ public class ProfilePanel
 
             ImGui.Separator();
 
-            var isShouldDraw = ImGui.CollapsingHeader("Add character");
+            var isShouldDrawCharacter = ImGui.CollapsingHeader("Add character");
 
-            if (isShouldDraw)
+            if (isShouldDrawCharacter)
                 DrawAddCharactersArea();
 
             ImGui.Separator();
 
             DrawCharacterListArea();
+
+            ImGui.Separator();
+
+            var isShouldDrawConditions = ImGui.CollapsingHeader("Add conditions");
+
+            if (isShouldDrawConditions)
+                DrawConditionsArea();
 
             ImGui.Separator();
 
@@ -529,5 +557,236 @@ public class ProfilePanel
     private void UpdateIdentifiers()
     {
 
+    }
+
+    private ConditionType _newConditionType = ConditionType.Gear;
+    private GearSlot? _selectedGearSlot = null;
+    private bool _gearPopupJustOpened = false;
+
+    private GearSelector? _gearSelector;
+    private ModSelector? _modSelector;
+
+    private string _selectedModName = "";
+    private int _selectedModIndex = 0;
+    private List<string> _availableModNames = new();
+
+    private void DrawConditionsArea()
+    {
+        if (_selector.Selected == null)
+            return;
+
+        bool conditionsEnabled = _selector.Selected.ConditionsEnabled;
+        if (ImGui.Checkbox("Enable Conditions", ref conditionsEnabled))
+            _manager.SetConditionsEnabled(_selector.Selected, conditionsEnabled);
+
+        ImGui.SameLine();
+
+        ImGuiUtil.LabeledHelpMarker("What do conditions do?",
+            "Conditions control whether this profile becomes active based on specific criteria.\n" +
+            "For example, you can set conditions to only apply this profile when your character is wearing specific gear or when certain mods are enabled.\n" +
+            "If the conditions are not met, the profile will be ignored, allowing other profiles to activate instead.");
+
+        ImGui.Separator();
+
+        float spacing = 4f;
+        Vector2 buttonSize = new(90f, 24f);
+
+        foreach (ConditionType type in Enum.GetValues(typeof(ConditionType)))
+        {
+            ImGui.PushID((int)type);
+
+            bool selected = _newConditionType == type;
+
+            Vector4 buttonColor = selected ? new Vector4(0.85f, 0.7f, 0.15f, 1f) : new Vector4(0.25f, 0.25f, 0.25f, 1f);
+            Vector4 hoverColor = selected ? new Vector4(0.95f, 0.75f, 0.2f, 1f) : new Vector4(0.35f, 0.35f, 0.35f, 1f);
+            Vector4 activeColor = selected ? new Vector4(0.7f, 0.6f, 0.1f, 1f) : new Vector4(0.15f, 0.15f, 0.15f, 1f);
+
+            ImGui.PushStyleColor(ImGuiCol.Button, buttonColor);
+            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, hoverColor);
+            ImGui.PushStyleColor(ImGuiCol.ButtonActive, activeColor);
+            ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 3f);
+            ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(10f, 3.5f));
+
+            if (ImGui.Button(type.ToString(), buttonSize))
+                _newConditionType = type;
+
+            ImGui.PopStyleVar(2);
+            ImGui.PopStyleColor(3);
+            ImGui.PopID();
+
+            ImGui.SameLine(0, spacing);
+        }
+        ImGui.NewLine();
+
+        ImGui.Separator();
+
+        if (_newConditionType == ConditionType.Gear)
+        {
+
+            foreach (var (slot, icon) in _gearSlotIconService.Icons)
+            {
+                ImGui.PushID((int)slot);
+
+                bool selected = _selectedGearSlot == slot;
+                Vector4 tintColor = selected ? new Vector4(1f, .81f, .2f, 1f) : Vector4.One;
+
+                ImGui.Image(icon.Handle, new Vector2(36, 36), Vector2.Zero, Vector2.One, tintColor, Vector4.Zero);
+
+                if (ImGui.IsItemClicked())
+                {
+                    _selectedGearSlot = slot;
+                    _gearSelector = new GearSelector(_gearDataService, _textureProvider, slot);
+                    _gearPopupJustOpened = true;
+                    ImGui.OpenPopup("GearSelectorPopup");
+                }
+
+                if (ImGui.BeginPopup("GearSelectorPopup"))
+                {
+                    if (_gearPopupJustOpened)
+                    {
+                        _gearPopupJustOpened = false;
+                    }
+
+                    _gearSelector?.Draw();
+                    ImGui.EndPopup();
+                }
+                else if (!_gearPopupJustOpened && _selectedGearSlot == slot && _gearSelector?.SelectedItem == null)
+                {
+                    _selectedGearSlot = null;
+                    _gearSelector = null;
+                }
+
+                ImGui.PopID();
+                ImGui.SameLine();
+            }
+            ImGui.NewLine();
+
+            if (_gearSelector?.SelectedItem is { } selectedItem)
+            {
+                var icon = _textureProvider.GetFromGameIcon(new GameIconLookup(selectedItem.Icon));
+                var modelId = selectedItem.ModelMain;
+                var modelBase = (modelId >> 16) & 0xFFFF;
+                var modelVariant = modelId & 0xFFFF;
+
+                ImGui.BeginGroup();
+
+                if (icon.TryGetWrap(out var wrap, out _))
+                    ImGui.Image(wrap.Handle, new Vector2(60));
+                else
+                    ImGui.Dummy(new Vector2(60));
+
+                ImGui.SameLine();
+
+                ImGui.BeginGroup();
+                ImGui.TextUnformatted(selectedItem.Name.ToString());
+                ImGui.TextUnformatted($"Model: {modelBase}, {modelVariant}");
+                ImGui.TextUnformatted($"Slot: {_selectedGearSlot}");
+                ImGui.EndGroup();
+
+                ImGui.EndGroup();
+            }
+        }
+        else if (_newConditionType == ConditionType.Mod)
+        {
+            _modSelector ??= new ModSelector(_modService);
+            _modSelector.Draw();
+        }
+
+        bool canAdd =
+            (_newConditionType == ConditionType.Gear && _gearSelector?.SelectedItem != null)
+            || (_newConditionType == ConditionType.Mod && _modSelector?.SelectedMod is not null);
+
+        if (ImGui.Button("Add Condition") && canAdd)
+        {
+            var profile = _selector.Selected;
+            if (_newConditionType == ConditionType.Gear && _gearSelector?.SelectedItem is { } item)
+            {
+                if (_selectedGearSlot is GearSlot slot)
+                {
+                    var condition = new GearCondition(slot, (ushort)item.ModelMain);
+                    _manager.AddGearCondition(profile, condition);
+                }
+            }
+            else if (_newConditionType == ConditionType.Mod && _modSelector?.SelectedMod is { } modName)
+            {
+                var condition = new ModCondition(modName);
+                _manager.AddModCondition(profile, condition);
+                _modSelector = null;
+            }
+        }
+
+
+        ImGui.Separator();
+
+        if (ImGui.BeginTable("ConditionsTable", 3, ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY | ImGuiTableFlags.BordersInnerV))
+        {
+            ImGui.TableSetupColumn("##Actions", ImGuiTableColumnFlags.WidthFixed, 50f);
+            ImGui.TableSetupColumn("Details");
+            ImGui.TableSetupColumn("Type", ImGuiTableColumnFlags.WidthFixed, 80f);
+            ImGui.TableHeadersRow();
+
+            for (int i = 0; i < _selector.Selected.Conditions.Count; i++)
+            {
+                var profile = _selector.Selected;
+                var cond = _selector.Selected.Conditions[i];
+
+                ImGui.TableNextRow();
+
+                ImGui.TableNextColumn();
+
+                ImGui.PushID(i);
+
+                bool enabled = cond.Enabled;
+                if (ImGui.Checkbox("##enabled", ref enabled))
+                    _manager.SetConditionEnabled(profile, cond, enabled);
+
+                ImGui.SameLine(0, 4f);
+
+                var deleteKeyValid = _configuration.UISettings.DeleteTemplateModifier.IsActive();
+                var tooltip = deleteKeyValid
+                    ? "Remove this condition."
+                    : $"Remove this condition.\nHold {_configuration.UISettings.DeleteTemplateModifier} to remove.";
+
+                if (ImGuiUtil.DrawDisabledButton(FontAwesomeIcon.Trash.ToIconString(), new Vector2(ImGui.GetFrameHeight()), tooltip, !deleteKeyValid, true))
+                {
+                    _manager.RemoveCondition(_selector.Selected, cond);
+                    ImGui.PopID();
+                    break;
+                }
+
+                ImGui.PopID();
+
+                ImGui.TableNextColumn();
+                if (cond is ModCondition modCond)
+                    ImGui.Text($"{modCond.ModName}");
+                else if (cond is GearCondition gearCond)
+                {
+                    var item = _gearDataService?.GetItemByModelId(gearCond.Slot, gearCond.ModelId);
+
+                    if (item is { } gearItem)
+                    {
+                        var icon = _textureProvider.GetFromGameIcon(new GameIconLookup(gearItem.Icon));
+                        if (icon.TryGetWrap(out var wrap, out _))
+                        {
+                            ImGui.Image(wrap.Handle, new Vector2(22, 22));
+                            ImGui.SameLine(0, 4f);
+                        }
+
+                        var name = gearItem.Name.ToString();
+                        ImGui.TextUnformatted($"{name} | {gearCond.Slot} - {gearCond.ModelId}");
+                    }
+                    else
+                    {
+                        ImGui.TextUnformatted($"Unknown | {gearCond.Slot} - {gearCond.ModelId}");
+                    }
+                }
+
+
+                ImGui.TableNextColumn();
+                ImGui.Text(cond.Type.ToString());
+            }
+
+            ImGui.EndTable();
+        }
     }
 }

@@ -32,6 +32,9 @@ public sealed class Profile : ISavable
 
     public List<ActorIdentifier> Characters { get; set; } = new();
 
+    public bool ConditionsEnabled { get; set; } = false;
+    public List<ProfileCondition> Conditions { get; } = new();
+
     public LowerString Name { get; set; } = LowerString.Empty;
 
     public bool Enabled { get; set; }
@@ -105,7 +108,9 @@ public sealed class Profile : ISavable
             ["Enabled"] = Enabled,
             ["IsWriteProtected"] = IsWriteProtected,
             ["Priority"] = Priority,
-            ["Templates"] = SerializeTemplates()
+            ["Templates"] = SerializeTemplates(),
+            ["Conditions"] = SerializeConditions(),
+            ["ConditionsEnabled"] = ConditionsEnabled
         };
 
         return ret;
@@ -133,6 +138,15 @@ public sealed class Profile : ISavable
             ret.Add(character.ToJson());
         }
         return ret;
+    }
+
+    private JArray SerializeConditions()
+    => ProfileCondition.SerializeConditions(Conditions);
+
+    public void DeserializeConditions(JArray arr)
+    {
+        Conditions.Clear();
+        Conditions.AddRange(ProfileCondition.DeserializeConditions(arr));
     }
 
     #endregion

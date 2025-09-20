@@ -212,6 +212,11 @@ public partial class ProfileManager : IDisposable
             }
         }
 
+        profile.ConditionsEnabled = obj["ConditionsEnabled"]?.ToObject<bool>() ?? false;
+
+        if (obj["Conditions"] is JArray conditionArray)
+            profile.DeserializeConditions(conditionArray);
+
         return profile;
     }
 }

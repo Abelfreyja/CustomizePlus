@@ -1,34 +1,36 @@
-﻿using System;
+﻿using CustomizePlus.Armatures.Data;
+using CustomizePlus.Armatures.Events;
+using CustomizePlus.Configuration.Data;
+using CustomizePlus.Core.Events;
+using CustomizePlus.Core.Helpers;
+using CustomizePlus.Core.Services;
+using CustomizePlus.Game.Services;
+using CustomizePlus.GameData.Data;
+using CustomizePlus.GameData.Extensions;
+using CustomizePlus.GameData.Services;
+using CustomizePlus.Profiles.Data;
+using CustomizePlus.Profiles.Enums;
+using CustomizePlus.Profiles.Events;
+using CustomizePlus.Profiles.Exceptions;
+using CustomizePlus.Profiles.Services;
+using CustomizePlus.Templates;
+using CustomizePlus.Templates.Data;
+using CustomizePlus.Templates.Events;
+using Dalamud.Plugin.Services;
+using Dalamud.Utility;
+using Newtonsoft.Json.Linq;
+using OtterGui.Classes;
+using OtterGui.Filesystem;
+using OtterGui.Log;
+using Penumbra.GameData.Actors;
+using Penumbra.GameData.Enums;
+using Penumbra.GameData.Interop;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Dalamud.Utility;
-using Newtonsoft.Json.Linq;
-using OtterGui.Log;
-using OtterGui.Filesystem;
-using Penumbra.GameData.Actors;
-using CustomizePlus.Core.Services;
-using CustomizePlus.Core.Helpers;
-using CustomizePlus.Armatures.Events;
-using CustomizePlus.Configuration.Data;
-using CustomizePlus.Armatures.Data;
-using CustomizePlus.Core.Events;
-using CustomizePlus.Templates;
-using CustomizePlus.Profiles.Data;
-using CustomizePlus.Templates.Events;
-using CustomizePlus.Profiles.Events;
-using CustomizePlus.Templates.Data;
-using CustomizePlus.GameData.Data;
-using CustomizePlus.GameData.Services;
-using CustomizePlus.GameData.Extensions;
-using CustomizePlus.Profiles.Enums;
-using CustomizePlus.Profiles.Exceptions;
-using Penumbra.GameData.Enums;
-using Penumbra.GameData.Interop;
 using System.Runtime.Serialization;
-using CustomizePlus.Game.Services;
 using System.Threading.Tasks;
-using OtterGui.Classes;
 
 namespace CustomizePlus.Profiles;
 
@@ -47,6 +49,7 @@ public partial class ProfileManager : IDisposable
     private readonly ActorObjectManager _objectManager;
     private readonly ReverseNameDicts _reverseNameDicts;
     private readonly MessageService _messageService;
+    private readonly ConditionService _conditionService;
     private readonly ProfileChanged _event;
     private readonly TemplateChanged _templateChangedEvent;
     private readonly ReloadEvent _reloadEvent;
@@ -71,7 +74,8 @@ public partial class ProfileManager : IDisposable
         ProfileChanged @event,
         TemplateChanged templateChangedEvent,
         ReloadEvent reloadEvent,
-        ArmatureChanged armatureChangedEvent)
+        ArmatureChanged armatureChangedEvent,
+        ConditionService conditionService)
     {
         _templateManager = templateManager;
         _templateEditorManager = templateEditorManager;
@@ -83,6 +87,7 @@ public partial class ProfileManager : IDisposable
         _objectManager = objectManager;
         _reverseNameDicts = reverseNameDicts;
         _messageService = messageService;
+        _conditionService = conditionService;
         _event = @event;
         _templateChangedEvent = templateChangedEvent;
         _templateChangedEvent.Subscribe(OnTemplateChange, TemplateChanged.Priority.ProfileManager);
@@ -401,6 +406,71 @@ public partial class ProfileManager : IDisposable
         return true;
     }
 
+    public void SetConditionsEnabled(Profile profile, bool enabled)
+    {
+        if (profile.ConditionsEnabled == enabled)
+            return;
+
+        profile.ConditionsEnabled = enabled;
+        SaveProfile(profile);
+
+        var type = enabled ? ProfileChanged.Type.EnabledConditions : ProfileChanged.Type.DisabledConditions;
+        _logger.Debug($"{(enabled ? "Enabled" : "Disabled")} conditions feature for profile {profile.UniqueId}");
+        _event.Invoke(type, profile, null);
+    }
+
+    public void SetConditionEnabled(Profile profile, ProfileCondition condition, bool enabled)
+    {
+        if (!profile.Conditions.Contains(condition))
+            return;
+
+        if (condition.Enabled == enabled)
+            return;
+
+        condition.Enabled = enabled;
+        SaveProfile(profile);
+
+        var type = enabled ? ProfileChanged.Type.EnabledCondition : ProfileChanged.Type.DisabledCondition;
+        _logger.Debug($"{(enabled ? "Enabled" : "Disabled")} condition {condition} in profile {profile.UniqueId}");
+        _event.Invoke(type, profile, condition);
+    }
+
+    public void AddGearCondition(Profile profile, GearCondition condition)
+    {
+        if (profile.Conditions.Contains(condition))
+            return;
+
+        profile.Conditions.Add(condition);
+        SaveProfile(profile);
+
+        _logger.Debug($"Added gear condition {condition.Slot} - {condition.ModelId} to profile {profile.UniqueId}.");
+        _event.Invoke(ProfileChanged.Type.ModifiedConditions, profile, condition);
+    }
+
+    public void AddModCondition(Profile profile, ModCondition condition)
+    {
+        if (profile.Conditions.Contains(condition))
+            return;
+
+        profile.Conditions.Add(condition);
+        SaveProfile(profile);
+
+        _logger.Debug($"Added mod condition '{condition.ModName}' to profile {profile.UniqueId}.");
+        _event.Invoke(ProfileChanged.Type.ModifiedConditions, profile, condition);
+    }
+
+    public void RemoveCondition(Profile profile, ProfileCondition condition)
+    {
+        if (!profile.Conditions.Contains(condition))
+            return;
+
+        profile.Conditions.Remove(condition);
+        SaveProfile(profile);
+
+        _logger.Debug($"Removed condition {condition} from profile {profile.UniqueId}");
+        _event.Invoke(ProfileChanged.Type.RemovedCondition, profile, condition);
+    }
+
     public void SetDefaultProfile(Profile? profile)
     {
         if (profile == null)
@@ -517,14 +587,22 @@ public partial class ProfileManager : IDisposable
         if (actorIdentifier.Type == IdentifierType.Owned && !actorIdentifier.IsOwnedByLocalPlayer())
             return null;
 
-        var query = Profiles.Where(p => p.Characters.Any(x => x.MatchesIgnoringOwnership(actorIdentifier)) && !p.IsTemporary && p.Enabled);
+        var query = Profiles.Where(p =>
+            p.Enabled &&
+            !p.IsTemporary &&
+            p.Characters.Any(x => x.MatchesIgnoringOwnership(actorIdentifier)) &&
+            (!p.ConditionsEnabled || _conditionService.IsProfileConditionMet(p, actorIdentifier)));
 
         var profile = query.OrderByDescending(x => x.Priority).FirstOrDefault();
 
-        if(profile == null)
+        if (profile == null)
         {
-            if (DefaultLocalPlayerProfile?.Enabled == true)
+            if (DefaultLocalPlayerProfile?.Enabled == true &&
+                (!DefaultLocalPlayerProfile.ConditionsEnabled ||
+                 _conditionService.IsProfileConditionMet(DefaultLocalPlayerProfile, actorIdentifier)))
+            {
                 return DefaultLocalPlayerProfile;
+            }
 
             return null;
         }
@@ -538,9 +616,6 @@ public partial class ProfileManager : IDisposable
     /// </summary>
     public IEnumerable<Profile> GetEnabledProfilesByActor(ActorIdentifier actorIdentifier)
     {
-        //performance: using textual override for ProfileAppliesTo here to not call
-        //GetGameObjectName every time we are trying to check object against profiles
-
         if (_objectManager.IsInLobby && !_configuration.ProfileApplicationSettings.ApplyInLobby)
             yield break;
 
@@ -551,44 +626,57 @@ public partial class ProfileManager : IDisposable
 
         bool IsProfileAppliesToCurrentActor(Profile profile)
         {
-            //default profile check is done later
-            if (profile == DefaultProfile)
-                return false;
-
-            if (profile == DefaultLocalPlayerProfile)
+            if (profile == DefaultProfile || profile == DefaultLocalPlayerProfile)
                 return false;
 
             if (actorIdentifier.Type == IdentifierType.Owned)
             {
-                if(profile.IsTemporary)
+                if (profile.IsTemporary)
                     return profile.Characters.Any(x => x.Matches(actorIdentifier));
-                else if(!actorIdentifier.IsOwnedByLocalPlayer())
+
+                if (!actorIdentifier.IsOwnedByLocalPlayer())
                     return false;
             }
 
             return profile.Characters.Any(x => x.MatchesIgnoringOwnership(actorIdentifier));
         }
 
-        if (_templateEditorManager.IsEditorActive && _templateEditorManager.EditorProfile.Enabled && IsProfileAppliesToCurrentActor(_templateEditorManager.EditorProfile))
-            yield return _templateEditorManager.EditorProfile;
-
-        foreach (var profile in Profiles.OrderByDescending(x => x.Priority))
+        if (_templateEditorManager.IsEditorActive &&
+            _templateEditorManager.EditorProfile.Enabled &&
+            IsProfileAppliesToCurrentActor(_templateEditorManager.EditorProfile))
         {
-            if(profile.Enabled && IsProfileAppliesToCurrentActor(profile))
+            var profile = _templateEditorManager.EditorProfile;
+            if (profile.IsTemporary || !profile.ConditionsEnabled || _conditionService.IsProfileConditionMet(profile, actorIdentifier))
                 yield return profile;
         }
 
-        if (DefaultLocalPlayerProfile != null && DefaultLocalPlayerProfile.Enabled)
+        foreach (var profile in Profiles.OrderByDescending(x => x.Priority))
+        {
+            if (!profile.Enabled || !IsProfileAppliesToCurrentActor(profile))
+                continue;
+
+            if (profile.IsTemporary || !profile.ConditionsEnabled || _conditionService.IsProfileConditionMet(profile, actorIdentifier))
+                yield return profile;
+        }
+
+        if (DefaultLocalPlayerProfile != null &&
+            DefaultLocalPlayerProfile.Enabled)
         {
             var currentPlayer = _actorManager.GetCurrentPlayer();
-            if(_objectManager.IsInLobby || (currentPlayer.IsValid && currentPlayer.Matches(actorIdentifier)))
-                yield return DefaultLocalPlayerProfile;
+            if (_objectManager.IsInLobby || (currentPlayer.IsValid && currentPlayer.Matches(actorIdentifier)))
+            {
+                if (!DefaultLocalPlayerProfile.ConditionsEnabled || _conditionService.IsProfileConditionMet(DefaultLocalPlayerProfile, actorIdentifier))
+                    yield return DefaultLocalPlayerProfile;
+            }
         }
 
         if (DefaultProfile != null &&
             DefaultProfile.Enabled &&
             (actorIdentifier.Type == IdentifierType.Player || actorIdentifier.Type == IdentifierType.Retainer))
-            yield return DefaultProfile;
+        {
+            if (!DefaultProfile.ConditionsEnabled || _conditionService.IsProfileConditionMet(DefaultProfile, actorIdentifier))
+                yield return DefaultProfile;
+        }
     }
 
     public IEnumerable<Profile> GetProfilesUsingTemplate(Template template)
