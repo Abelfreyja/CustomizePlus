@@ -1,4 +1,4 @@
-﻿using CustomizePlus.Configuration.Data;
+using CustomizePlus.Configuration.Data;
 using CustomizePlus.Core.Data;
 using CustomizePlus.Core.Services;
 using CustomizePlus.Game.Helpers;
@@ -13,6 +13,7 @@ using CustomizePlus.Templates.Events;
 using CustomizePlus.UI.Windows.Controls;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
+using Dalamud.Interface.Colors;
 using Dalamud.Interface.Components;
 using Dalamud.Interface.Textures;
 using Dalamud.Interface.Utility;
@@ -718,72 +719,95 @@ public class ProfilePanel
 
         ImGui.Separator();
 
-        if (ImGui.BeginTable("ConditionsTable", 3, ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY | ImGuiTableFlags.BordersInnerV))
+        var tableFlags = ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY | ImGuiTableFlags.BordersInnerV;
+        if (ImGui.BeginTable("ConditionsTable", 3, tableFlags))
         {
             ImGui.TableSetupColumn("##Actions", ImGuiTableColumnFlags.WidthFixed, 50f);
-            ImGui.TableSetupColumn("Details");
-            ImGui.TableSetupColumn("Type", ImGuiTableColumnFlags.WidthFixed, 80f);
+            ImGui.TableSetupColumn("Type", ImGuiTableColumnFlags.WidthFixed, 60f);
+            ImGui.TableSetupColumn("Condition");
             ImGui.TableHeadersRow();
 
-            for (int i = 0; i < _selector.Selected.Conditions.Count; i++)
+            using (var padding = ImRaii.PushStyle(ImGuiStyleVar.FramePadding, new Vector2(4f, 2f)))
             {
-                var profile = _selector.Selected;
-                var cond = _selector.Selected.Conditions[i];
-
-                ImGui.TableNextRow();
-
-                ImGui.TableNextColumn();
-
-                ImGui.PushID(i);
-
-                bool enabled = cond.Enabled;
-                if (ImGui.Checkbox("##enabled", ref enabled))
-                    _manager.SetConditionEnabled(profile, cond, enabled);
-
-                ImGui.SameLine(0, 4f);
-
-                var deleteKeyValid = _configuration.UISettings.DeleteTemplateModifier.IsActive();
-                var tooltip = deleteKeyValid
-                    ? "Remove this condition."
-                    : $"Remove this condition.\nHold {_configuration.UISettings.DeleteTemplateModifier} to remove.";
-
-                if (ImGuiUtil.DrawDisabledButton(FontAwesomeIcon.Trash.ToIconString(), new Vector2(ImGui.GetFrameHeight()), tooltip, !deleteKeyValid, true))
+                for (int i = 0; i < _selector.Selected.Conditions.Count; i++)
                 {
-                    _manager.RemoveCondition(_selector.Selected, cond);
-                    ImGui.PopID();
-                    break;
-                }
+                    var profile = _selector.Selected;
+                    var cond = _selector.Selected.Conditions[i];
 
-                ImGui.PopID();
+                    ImGui.TableNextRow(ImGuiTableRowFlags.None, 0f);
 
-                ImGui.TableNextColumn();
-                if (cond is ModCondition modCond)
-                    ImGui.Text($"{modCond.ModName}");
-                else if (cond is GearCondition gearCond)
-                {
-                    var item = _gearDataService?.GetItemByModelId(gearCond.Slot, gearCond.ModelId);
-
-                    if (item is { } gearItem)
+                    ImGui.TableNextColumn();
+                    using (var id = ImRaii.PushId(i))
                     {
-                        var icon = _textureProvider.GetFromGameIcon(new GameIconLookup(gearItem.Icon));
-                        if (icon.TryGetWrap(out var wrap, out _))
+                        var deleteKeyValid = _configuration.UISettings.DeleteTemplateModifier.IsActive();
+                        var tooltip = deleteKeyValid
+                            ? "Remove this condition."
+                            : $"Remove this condition.\nHold {_configuration.UISettings.DeleteTemplateModifier} to remove.";
+
+                        if (ImGuiUtil.DrawDisabledButton(FontAwesomeIcon.Trash.ToIconString(), new Vector2(ImGui.GetFrameHeight()), tooltip, !deleteKeyValid, true))
                         {
-                            ImGui.Image(wrap.Handle, new Vector2(22, 22));
-                            ImGui.SameLine(0, 4f);
+                            _manager.RemoveCondition(_selector.Selected, cond);
+                            break;
                         }
 
-                        var name = gearItem.Name.ToString();
-                        ImGui.TextUnformatted($"{name} | {gearCond.Slot} - {gearCond.ModelId}");
+                        ImGui.SameLine(0, 4f);
+
+                        bool enabled = cond.Enabled;
+                        if (ImGui.Checkbox("##enabled", ref enabled))
+                            _manager.SetConditionEnabled(profile, cond, enabled);
+
+                    }
+
+                    ImGui.TableNextColumn();
+                    var typeColor = cond switch
+                    {
+                        ModCondition => new Vector4(0.55f, 0.80f, 1f, 1f),
+                        GearCondition => new Vector4(0.95f, 0.75f, 0.45f, 1f),
+                        _ => ImGuiColors.DalamudWhite,
+                    };
+                    ImGui.TextColored(typeColor, cond.Type.ToString());
+
+                    ImGui.TableNextColumn();
+                    if (cond is ModCondition modCond)
+                    {
+                        var modName = modCond.ModName;
+                        var modExists = _modService.IsValidMod(modName);
+                        if (modExists)
+                        {
+                            ImGui.TextUnformatted(modName);
+                        }
+                        else
+                        {
+                            ImGui.TextColored(new Vector4(1f, 0.45f, 0.45f, 1f), modName);
+                            ImGui.SameLine(0, 4f);
+                            ImGuiComponents.HelpMarker("This mod is not currently available in Penumbra.");
+                        }
+                    }
+                    else if (cond is GearCondition gearCond)
+                    {
+                        var item = _gearDataService?.GetItemByModelId(gearCond.Slot, gearCond.ModelId);
+                        if (item is { } gearItem)
+                        {
+                            var icon = _textureProvider.GetFromGameIcon(new GameIconLookup(gearItem.Icon));
+                            if (icon.TryGetWrap(out var wrap, out _))
+                            {
+                                ImGui.Image(wrap.Handle, new Vector2(18f, 18f));
+                                ImGui.SameLine(0, 6f);
+                            }
+
+                            var name = gearItem.Name.ToString();
+                            ImGui.TextUnformatted($"{name} ({gearCond.Slot} #{gearCond.ModelId})");
+                        }
+                        else
+                        {
+                            ImGui.TextUnformatted($"Slot {gearCond.Slot} | Model {gearCond.ModelId}");
+                        }
                     }
                     else
                     {
-                        ImGui.TextUnformatted($"Unknown | {gearCond.Slot} - {gearCond.ModelId}");
+                        ImGui.TextUnformatted("Unknown condition type");
                     }
                 }
-
-
-                ImGui.TableNextColumn();
-                ImGui.Text(cond.Type.ToString());
             }
 
             ImGui.EndTable();

@@ -1,4 +1,4 @@
-﻿using Dalamud.Plugin;
+using Dalamud.Plugin;
 using Newtonsoft.Json.Linq;
 using OtterGui.Log;
 using Penumbra.Api.Enums;
@@ -6,6 +6,7 @@ using Penumbra.Api.Helpers;
 using Penumbra.Api.IpcSubscribers;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace CustomizePlus.Interop.Ipc;
 
@@ -103,6 +104,111 @@ public sealed class PenumbraIpcHandler : IIpcSubscriber
         }
     }
 
+    public bool TryGetEffectiveCollection(int gameObjectIndex, out Guid collectionId)
+    {
+        collectionId = Guid.Empty;
+
+        if (!_available || gameObjectIndex < 0)
+            return false;
+
+        try
+        {
+            var (objectValid, _, effectiveCollection) = _getCollectionForObject.Invoke(gameObjectIndex);
+            if (!objectValid || effectiveCollection.Id == Guid.Empty)
+                return false;
+
+            collectionId = effectiveCollection.Id;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _log.Debug($"Failed to get collection for object index {gameObjectIndex}: {ex.Message}");
+            return false;
+        }
+    }
+
+    public bool TryGetModEnabled(Guid collectionId, string modIdentifier, out bool enabled)
+    {
+        enabled = false;
+
+        if (!_available || collectionId == Guid.Empty || string.IsNullOrWhiteSpace(modIdentifier))
+            return false;
+
+        bool? ResolveState(string modDirectory, string modName)
+        {
+            try
+            {
+                var (result, data) = _getCurrentModSettingsWithTemp.Invoke(collectionId, modDirectory, modName, false, false, 0);
+                if (result != PenumbraApiEc.Success || data == null)
+                    return null;
+
+                return data.Value.Item1;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        var state = ResolveState(modIdentifier, string.Empty);
+        if (state.HasValue)
+        {
+            enabled = state.Value;
+            return true;
+        }
+
+        state = ResolveState(string.Empty, modIdentifier);
+        if (state.HasValue)
+        {
+            enabled = state.Value;
+            return true;
+        }
+
+        try
+        {
+            var mods = _getMods.Invoke();
+            if (mods.Count == 0)
+                return false;
+
+            var directoryMatch = mods.FirstOrDefault(kv => kv.Key.Equals(modIdentifier, StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrEmpty(directoryMatch.Key))
+            {
+                state = ResolveState(directoryMatch.Key, string.Empty);
+                if (state.HasValue)
+                {
+                    enabled = state.Value;
+                    return true;
+                }
+
+                if (!string.IsNullOrEmpty(directoryMatch.Value))
+                {
+                    state = ResolveState(directoryMatch.Key, directoryMatch.Value);
+                    if (state.HasValue)
+                    {
+                        enabled = state.Value;
+                        return true;
+                    }
+                }
+            }
+
+            var nameMatch = mods.FirstOrDefault(kv => kv.Value.Equals(modIdentifier, StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrEmpty(nameMatch.Key))
+            {
+                state = ResolveState(nameMatch.Key, nameMatch.Value);
+                if (state.HasValue)
+                {
+                    enabled = state.Value;
+                    return true;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.Debug($"Failed to resolve mod identifier '{modIdentifier}': {ex.Message}");
+        }
+
+        return false;
+    }
     public void Initialize()
     {
         Disable();

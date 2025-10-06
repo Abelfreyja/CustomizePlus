@@ -1,4 +1,4 @@
-﻿using CustomizePlus.Armatures.Data;
+using CustomizePlus.Armatures.Data;
 using CustomizePlus.Armatures.Events;
 using CustomizePlus.Core.Data;
 using CustomizePlus.Core.Extensions;
@@ -47,6 +47,8 @@ public unsafe sealed class ArmatureManager : IDisposable
 
     public Dictionary<ActorIdentifier, Armature> Armatures { get; private set; } = new();
 
+    private const string ModConditionRebindTag = "CPlus.ModConditionChanged";
+
     private readonly Dictionary<(ActorIdentifier, Profile), bool> _gearConditionState = new();
 
     public ArmatureManager(
@@ -77,6 +79,7 @@ public unsafe sealed class ArmatureManager : IDisposable
         _event = @event;
         _emoteService = emoteService;
         _conditionService = conditionService;
+        _conditionService.ModConditionStateChanged += OnModConditionStateChanged;
 
         _templateChangedEvent.Subscribe(OnTemplateChange, TemplateChanged.Priority.ArmatureManager);
         _profileChangedEvent.Subscribe(OnProfileChange, ProfileChanged.Priority.ArmatureManager);
@@ -84,6 +87,7 @@ public unsafe sealed class ArmatureManager : IDisposable
 
     public void Dispose()
     {
+        _conditionService.ModConditionStateChanged -= OnModConditionStateChanged;
         _templateChangedEvent.Unsubscribe(OnTemplateChange);
         _profileChangedEvent.Unsubscribe(OnProfileChange);
     }
@@ -128,6 +132,9 @@ public unsafe sealed class ArmatureManager : IDisposable
         foreach (var kvPair in Armatures)
             kvPair.Value.IsPendingProfileRebind = true;
     }
+
+    private void OnModConditionStateChanged()
+        => _framework.RegisterImportant(ModConditionRebindTag, RebindAllArmatures);
 
     /// <summary>
     /// Deletes armatures which no longer have actor associated with them and creates armatures for new actors
