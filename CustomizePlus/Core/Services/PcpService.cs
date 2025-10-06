@@ -1,4 +1,4 @@
-﻿using CustomizePlus.Api.Data;
+using CustomizePlus.Api.Data;
 using CustomizePlus.Configuration.Data;
 using CustomizePlus.Interop.Ipc;
 using CustomizePlus.Profiles;
@@ -10,6 +10,7 @@ using OtterGui.Services;
 using Penumbra.GameData.Actors;
 using Penumbra.GameData.Interop;
 using System;
+using System.Linq;
 
 namespace CustomizePlus.Core.Services;
 
@@ -87,7 +88,7 @@ public class PcpService : IRequiredService
             return;
         }
 
-        var profile = _profileManager.GetActiveProfileByActor(actor);
+        var profile = _profileManager.GetEnabledProfilesByActor(actorIdentifier).FirstOrDefault();
         if (profile == null)
         {
             _log.Debug("[CPlusPCPService] No active profile found for actor.");
