@@ -124,6 +124,39 @@ public class ProfilePanel
             0, LockButton(),
             HeaderDrawer.Button.IncognitoButton(_selector.IncognitoMode, v => _selector.IncognitoMode = v));
 
+    private static Vector4 GetConditionBaseColor(ConditionType type)
+        => type switch
+        {
+            ConditionType.Mod => new Vector4(0.55f, 0.80f, 1f, 1f),
+            ConditionType.Gear => new Vector4(0.95f, 0.75f, 0.45f, 1f),
+            _ => Vector4.One
+        };
+
+    private static Vector4 LightenColor(Vector4 color, float amount)
+        => new Vector4(
+            MathF.Min(color.X + amount, 1f),
+            MathF.Min(color.Y + amount, 1f),
+            MathF.Min(color.Z + amount, 1f),
+            color.W);
+
+    private static Vector4 DarkenColor(Vector4 color, float amount)
+        => new Vector4(
+            MathF.Max(color.X - amount, 0f),
+            MathF.Max(color.Y - amount, 0f),
+            MathF.Max(color.Z - amount, 0f),
+            color.W);
+
+    private static Vector4 DimColor(Vector4 color, float factor, float alphaFactor)
+    {
+        static float Clamp(float value) => MathF.Max(0f, MathF.Min(1f, value));
+
+        return new Vector4(
+            Clamp(color.X * factor),
+            Clamp(color.Y * factor),
+            Clamp(color.Z * factor),
+            Clamp(color.W * alphaFactor));
+    }
+
     private void DrawMultiSelection()
     {
         if (_selector.SelectedPaths.Count == 0)
@@ -598,9 +631,24 @@ public class ProfilePanel
 
             bool selected = _newConditionType == type;
 
-            Vector4 buttonColor = selected ? new Vector4(0.85f, 0.7f, 0.15f, 1f) : new Vector4(0.25f, 0.25f, 0.25f, 1f);
-            Vector4 hoverColor = selected ? new Vector4(0.95f, 0.75f, 0.2f, 1f) : new Vector4(0.35f, 0.35f, 0.35f, 1f);
-            Vector4 activeColor = selected ? new Vector4(0.7f, 0.6f, 0.1f, 1f) : new Vector4(0.15f, 0.15f, 0.15f, 1f);
+            var baseColor = GetConditionBaseColor(type);
+
+            Vector4 buttonColor;
+            Vector4 hoverColor;
+            Vector4 activeColor;
+
+            if (selected)
+            {
+                buttonColor = baseColor;
+                hoverColor = LightenColor(baseColor, 0.08f);
+                activeColor = DarkenColor(baseColor, 0.12f);
+            }
+            else
+            {
+                buttonColor = DimColor(baseColor, 0.45f, 0.65f);
+                hoverColor = DimColor(baseColor, 0.60f, 0.75f);
+                activeColor = DimColor(baseColor, 0.35f, 0.60f);
+            }
 
             ImGui.PushStyleColor(ImGuiCol.Button, buttonColor);
             ImGui.PushStyleColor(ImGuiCol.ButtonHovered, hoverColor);
