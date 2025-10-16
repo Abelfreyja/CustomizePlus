@@ -1,4 +1,4 @@
-﻿using CustomizePlus.Armatures.Data;
+using CustomizePlus.Armatures.Data;
 using CustomizePlus.Configuration.Data;
 using CustomizePlus.Core.Data;
 using CustomizePlus.Core.Helpers;
@@ -47,6 +47,9 @@ public class BoneEditorPanel
     private bool _isUnlocked = false;
 
     private string _boneSearch = string.Empty;
+
+    private readonly HashSet<string> _propagationHighlights = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _propagationSources = new(StringComparer.Ordinal);
 
     // all the stuff to handle undo/redo
     private readonly Stack<Dictionary<string, BoneTransform>> _undoStack = new();
@@ -334,6 +337,8 @@ public class BoneEditorPanel
                 var nonFavoriteRows = relevantModelBones
                     .Where(b => !_favoriteBones.Contains(b.BoneCodeName))
                     .ToList();
+
+                UpdatePropagationHighlights(favoriteRows.Concat(nonFavoriteRows));
 
                 var groupedBones = nonFavoriteRows
                     .GroupBy(x => BoneData.GetBoneFamily(x.BoneCodeName));
@@ -703,6 +708,18 @@ public class BoneEditorPanel
     private void CompleteBoneEditor(BoneData.BoneFamily boneFamily, EditRowParams bone)
     {
         var codename = bone.BoneCodeName;
+
+        var isPropagationAffected = _propagationHighlights.Contains(codename);
+        Vector4 sliderHighlightColor = Vector4.Zero;
+
+        if (isPropagationAffected)
+        {
+            sliderHighlightColor = GetPropagationHighlightVector(boneFamily, codename);
+            var highlightColor = ImGui.ColorConvertFloat4ToU32(sliderHighlightColor);
+            ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, highlightColor);
+            ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg1, highlightColor);
+        }
+
         var displayName = bone.BoneDisplayName;
         var transform = new BoneTransform(bone.Transform);
 
@@ -751,10 +768,13 @@ public class BoneEditorPanel
                 if (_pendingUndoSnapshot == null)
                     _pendingUndoSnapshot = CaptureCurrentState();
             }
-            if (SingleValueSlider($"##{displayName}-X", ref tempX))
+            using (new SliderHighlightScope(isPropagationAffected, sliderHighlightColor))
             {
-                newVector.X = tempX;
-                valueChanged = true;
+                if (SingleValueSlider($"##{displayName}-X", ref tempX))
+                {
+                    newVector.X = tempX;
+                    valueChanged = true;
+                }
             }
             if (ImGui.IsItemDeactivatedAfterEdit())
             {
@@ -774,10 +794,13 @@ public class BoneEditorPanel
                 if (_pendingUndoSnapshot == null)
                     _pendingUndoSnapshot = CaptureCurrentState();
             }
-            if (SingleValueSlider($"##{displayName}-Y", ref tempY))
+            using (new SliderHighlightScope(isPropagationAffected, sliderHighlightColor))
             {
-                newVector.Y = tempY;
-                valueChanged = true;
+                if (SingleValueSlider($"##{displayName}-Y", ref tempY))
+                {
+                    newVector.Y = tempY;
+                    valueChanged = true;
+                }
             }
             if (ImGui.IsItemDeactivatedAfterEdit())
             {
@@ -797,10 +820,13 @@ public class BoneEditorPanel
                 if (_pendingUndoSnapshot == null)
                     _pendingUndoSnapshot = CaptureCurrentState();
             }
-            if (SingleValueSlider($"##{displayName}-Z", ref tempZ))
+            using (new SliderHighlightScope(isPropagationAffected, sliderHighlightColor))
             {
-                newVector.Z = tempZ;
-                valueChanged = true;
+                if (SingleValueSlider($"##{displayName}-Z", ref tempZ))
+                {
+                    newVector.Z = tempZ;
+                    valueChanged = true;
+                }
             }
             if (ImGui.IsItemDeactivatedAfterEdit())
             {
@@ -823,10 +849,13 @@ public class BoneEditorPanel
                 if (_pendingUndoSnapshot == null)
                     _pendingUndoSnapshot = CaptureCurrentState();
             }
-            if (FullBoneSlider($"##{displayName}-All", ref tempScale))
+            using (new SliderHighlightScope(isPropagationAffected, sliderHighlightColor))
             {
-                newVector = tempScale;
-                valueChanged = true;
+                if (FullBoneSlider($"##{displayName}-All", ref tempScale))
+                {
+                    newVector = tempScale;
+                    valueChanged = true;
+                }
             }
             if (ImGui.IsItemDeactivatedAfterEdit())
             {
@@ -855,6 +884,9 @@ public class BoneEditorPanel
             ImGui.SameLine();
         }
 
+        if (DrawParentChainIndicator(bone, isPropagationAffected))
+            ImGui.SameLine();
+
         CtrlHelper.StaticLabel(!isFavorite ? displayName : $"{displayName} ({boneFamily})", CtrlHelper.TextAlignment.Left,
             BoneData.IsIVCSCompatibleBone(codename) ? $"(IVCS Compatible) {codename}" : codename);
 
@@ -875,6 +907,165 @@ public class BoneEditorPanel
         }
 
         ImGui.TableNextRow();
+    }
+
+    private bool DrawParentChainIndicator(EditRowParams bone, bool isPropagationAffected)
+    {
+        if (!isPropagationAffected)
+            return false;
+
+        var ancestors = EnumerateAncestors(bone)
+            .Select(name => new
+            {
+                Code = name,
+                Display = BoneData.GetBoneDisplayName(name),
+                Family = BoneData.GetBoneFamily(name),
+                IsSource = _propagationSources.Contains(name)
+            })
+            .ToList();
+
+        if (ancestors.Count == 0)
+            return false;
+
+        ImGui.PushStyleColor(ImGuiCol.Text, Constants.Colors.Info);
+        ImGuiUtil.PrintIcon(FontAwesomeIcon.Link);
+        ImGui.PopStyleColor();
+
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.BeginTooltip();
+            ImGui.TextUnformatted("Parent chain:");
+            ImGui.Separator();
+            foreach (var ancestor in ancestors)
+            {
+                var textColor = Constants.PropagationColors.GetTooltipColor(ancestor.Family, ancestor.IsSource);
+
+                ImGui.PushStyleColor(ImGuiCol.Text, textColor);
+                ImGui.TextUnformatted($"- {ancestor.Display} ({ancestor.Code})");
+                ImGui.PopStyleColor();
+            }
+
+            ImGui.EndTooltip();
+        }
+
+        return true;
+    }
+
+    private void UpdatePropagationHighlights(IEnumerable<EditRowParams> rows)
+    {
+        _propagationHighlights.Clear();
+        _propagationSources.Clear();
+
+        if (rows == null)
+            return;
+
+        var rowList = rows as IList<EditRowParams> ?? rows.ToList();
+        if (rowList.Count == 0)
+            return;
+
+        var available = new HashSet<string>(rowList.Select(r => r.BoneCodeName), StringComparer.Ordinal);
+
+        foreach (var row in rowList)
+        {
+            var transform = row.Transform;
+            var shouldPropagate = _editingAttribute switch
+            {
+                BoneAttribute.Position => transform.PropagateTranslation,
+                BoneAttribute.Rotation => transform.PropagateRotation,
+                _ => transform.PropagateScale
+            };
+
+            if (!shouldPropagate)
+                continue;
+
+            _propagationSources.Add(row.BoneCodeName);
+            _propagationHighlights.Add(row.BoneCodeName);
+
+            foreach (var descendant in EnumerateDescendants(row, available))
+            {
+                _propagationHighlights.Add(descendant);
+            }
+        }
+    }
+
+    private IEnumerable<string> EnumerateDescendants(EditRowParams source, HashSet<string> available)
+    {
+        if (source.Basis != null)
+        {
+            foreach (var descendant in source.Basis.GetDescendants())
+            {
+                if (available.Contains(descendant.BoneName))
+                    yield return descendant.BoneName;
+            }
+
+            yield break;
+        }
+
+        foreach (var descendant in EnumerateDescendantsFromBoneData(source.BoneCodeName))
+        {
+            if (available.Contains(descendant))
+                yield return descendant;
+        }
+    }
+
+    private static IEnumerable<string> EnumerateDescendantsFromBoneData(string root)
+    {
+        if (string.IsNullOrEmpty(root))
+            yield break;
+
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+        var stack = new Stack<string>(BoneData.GetChildren(root));
+
+        while (stack.Count > 0)
+        {
+            var current = stack.Pop();
+            if (!visited.Add(current))
+                continue;
+
+            yield return current;
+
+            foreach (var child in BoneData.GetChildren(current))
+                stack.Push(child);
+        }
+    }
+
+    private IEnumerable<string> EnumerateAncestors(EditRowParams bone)
+    {
+        if (bone.Basis != null)
+        {
+            var parent = bone.Basis.ParentBone;
+            var visited = new HashSet<string>(StringComparer.Ordinal);
+
+            while (parent != null && visited.Add(parent.BoneName))
+            {
+                yield return parent.BoneName;
+                parent = parent.ParentBone;
+            }
+
+            yield break;
+        }
+
+        foreach (var ancestor in EnumerateAncestorsFromBoneData(bone.BoneCodeName))
+            yield return ancestor;
+    }
+
+    private static IEnumerable<string> EnumerateAncestorsFromBoneData(string codename)
+    {
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+        var parent = BoneData.GetParent(codename);
+
+        while (!string.IsNullOrEmpty(parent) && visited.Add(parent))
+        {
+            yield return parent;
+            parent = BoneData.GetParent(parent);
+        }
+    }
+
+    private Vector4 GetPropagationHighlightVector(BoneData.BoneFamily family, string boneCodeName)
+    {
+        return _propagationSources.Contains(boneCodeName)
+            ? Constants.PropagationColors.GetParentColor(family)
+            : Constants.PropagationColors.GetChildColor(family);
     }
 
     private Dictionary<string, BoneTransform> CaptureCurrentState()
@@ -907,6 +1098,34 @@ public class BoneEditorPanel
         }
     }
 
+    private readonly struct SliderHighlightScope : IDisposable
+    {
+        private readonly bool _active;
+
+        public SliderHighlightScope(bool active, Vector4 color)
+        {
+            _active = active;
+            if (_active)
+            {
+                ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 1f);
+                var borderColor = new Vector4(
+                    MathF.Min(color.X + 0.35f, 1f),
+                    MathF.Min(color.Y + 0.35f, 1f),
+                    MathF.Min(color.Z + 0.35f, 1f),
+                    MathF.Min(color.W + 0.50f, 1f));
+                ImGui.PushStyleColor(ImGuiCol.Border, borderColor);
+            }
+        }
+
+        public void Dispose()
+        {
+            if (_active)
+            {
+                ImGui.PopStyleColor();
+                ImGui.PopStyleVar();
+            }
+        }
+    }
     #endregion
 }
 

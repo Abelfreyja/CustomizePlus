@@ -2,6 +2,8 @@
 using FFXIVClientStructs.Havok.Common.Base.Math.QsTransform;
 using FFXIVClientStructs.Havok.Common.Base.Math.Quaternion;
 using FFXIVClientStructs.Havok.Common.Base.Math.Vector;
+using System;
+using System.Collections.Generic;
 using System.Numerics;
 
 namespace CustomizePlus.Core.Data;
@@ -93,5 +95,58 @@ internal static class Constants
         public static Vector4 Error = new Vector4(1, 0, 0, 1);
         public static Vector4 Active = new Vector4(0, 1, 0, 1);
         public static Vector4 Favorite = new Vector4(0.9f, 0.8f, 0.4f, 1);
+    }
+
+    internal static class PropagationColors
+    {
+        private static readonly IReadOnlyDictionary<BoneData.BoneFamily, Vector4> Palette = new Dictionary<BoneData.BoneFamily, Vector4>
+        {
+            { BoneData.BoneFamily.Root,    new Vector4(0.18f, 0.18f, 0.18f, 0.38f) },
+            { BoneData.BoneFamily.Spine,   new Vector4(0.18f, 0.28f, 0.42f, 0.38f) },
+            { BoneData.BoneFamily.Chest,   new Vector4(0.24f, 0.28f, 0.44f, 0.38f) },
+            { BoneData.BoneFamily.Arms,    new Vector4(0.30f, 0.24f, 0.40f, 0.38f) },
+            { BoneData.BoneFamily.Hands,   new Vector4(0.34f, 0.28f, 0.30f, 0.38f) },
+            { BoneData.BoneFamily.Legs,    new Vector4(0.20f, 0.32f, 0.26f, 0.38f) },
+            { BoneData.BoneFamily.Feet,    new Vector4(0.22f, 0.34f, 0.28f, 0.38f) },
+            { BoneData.BoneFamily.Tail,    new Vector4(0.22f, 0.32f, 0.44f, 0.38f) },
+            { BoneData.BoneFamily.Face,    new Vector4(0.40f, 0.26f, 0.28f, 0.40f) },
+            { BoneData.BoneFamily.Hair,    new Vector4(0.34f, 0.32f, 0.20f, 0.38f) },
+            { BoneData.BoneFamily.Eyes,    new Vector4(0.26f, 0.38f, 0.50f, 0.38f) },
+            { BoneData.BoneFamily.Ears,    new Vector4(0.32f, 0.30f, 0.24f, 0.38f) },
+            { BoneData.BoneFamily.Groin,   new Vector4(0.34f, 0.24f, 0.36f, 0.38f) },
+            { BoneData.BoneFamily.Unknown, new Vector4(0.18f, 0.18f, 0.18f, 0.38f) },
+        };
+
+        private static readonly Vector4 DefaultChild = new Vector4(0.22f, 0.32f, 0.44f, 0.38f);
+        private const float ParentChannelBoost = 0f;
+        private const float ParentAlphaBoost = 0.35f;
+        private const float TooltipChildBoost = 0.07f;
+        private const float TooltipChildAlphaBoost = 0.75f;
+        private const float TooltipParentBoost = 0.07f;
+        private const float TooltipParentAlphaBoost = 0.95f;
+
+        public static Vector4 GetChildColor(BoneData.BoneFamily family)
+            => Palette.TryGetValue(family, out var color) ? color : DefaultChild;
+
+        public static Vector4 GetParentColor(BoneData.BoneFamily family)
+            => BoostColor(GetChildColor(family), ParentChannelBoost, ParentAlphaBoost);
+
+        public static Vector4 GetTooltipColor(BoneData.BoneFamily family, bool isSource)
+        {
+            var baseColor = isSource ? GetParentColor(family) : GetChildColor(family);
+            var channelBoost = isSource ? TooltipParentBoost : TooltipChildBoost;
+            var alphaBoost = isSource ? TooltipParentAlphaBoost : TooltipChildAlphaBoost;
+
+            return BoostColor(baseColor, channelBoost, alphaBoost);
+        }
+
+        private static Vector4 BoostColor(Vector4 color, float channelBoost, float alphaBoost)
+        {
+            return new Vector4(
+                MathF.Min(color.X + channelBoost, 1f),
+                MathF.Min(color.Y + channelBoost, 1f),
+                MathF.Min(color.Z + channelBoost, 1f),
+                MathF.Min(color.W + alphaBoost, 1f));
+        }
     }
 }

@@ -468,6 +468,11 @@ public static class BoneData //todo: DI, do not show IVCS unless IVCS is install
         return BoneTable.TryGetValue(codename, out var row) ? row.MirroredCodename : null;
     }
 
+    public static string? GetParent(string codename)
+    {
+        return BoneTable.TryGetValue(codename, out var row) ? row.Parent : null;
+    }
+
     public static string[] GetChildren(string codename)
     {
         return BoneTable.TryGetValue(codename, out var row) ? row.Children : Array.Empty<string>();
