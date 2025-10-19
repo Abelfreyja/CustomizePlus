@@ -49,7 +49,7 @@ public unsafe sealed class ArmatureManager : IDisposable
 
     private const string ModConditionRebindTag = "CPlus.ModConditionChanged";
 
-    private readonly Dictionary<(ActorIdentifier, Profile), bool> _gearConditionState = new();
+    private readonly Dictionary<(ActorIdentifier, Profile), bool> _conditionState = new();
 
     public ArmatureManager(
         ProfileManager profileManager,
@@ -100,7 +100,7 @@ public unsafe sealed class ArmatureManager : IDisposable
         try
         {
             RefreshArmatures();
-            DetectGearChanges();
+            DetectConditionChanges();
             ApplyArmatureTransforms();
         }
         catch (Exception ex)
@@ -690,7 +690,7 @@ public unsafe sealed class ArmatureManager : IDisposable
     }
 
     // might not be very optimal to do this every render frame, but for now it will do
-    private void DetectGearChanges()
+    private void DetectConditionChanges()
     {
         foreach (var (identifier, data) in _objectManager)
         {
@@ -703,7 +703,7 @@ public unsafe sealed class ArmatureManager : IDisposable
                     p.Enabled &&
                     p.ConditionsEnabled &&
                     p.Characters.Any(c => c.MatchesIgnoringOwnership(actorId)) &&
-                    p.Conditions.OfType<GearCondition>().Any(c => c.Enabled))
+                    p.Conditions.Any(c => c.Enabled && c is not ModCondition))
                 .ToList();
 
             if (profiles.Count == 0)
@@ -720,16 +720,16 @@ public unsafe sealed class ArmatureManager : IDisposable
                 var key = (actorId, profile);
                 var currentSatisfied = _conditionService.IsProfileConditionMet(profile, actorId);
 
-                if (_gearConditionState.TryGetValue(key, out var previousSatisfied))
+                if (_conditionState.TryGetValue(key, out var previousSatisfied))
                 {
                     if (previousSatisfied != currentSatisfied)
                     {
-                        _logger.Debug($"Gear condition changed for {actorId.IncognitoDebug()}, rebinding for profile '{profile.Name.Text}'.");
+                        _logger.Debug($"Profile conditions changed for {actorId.IncognitoDebug()}, rebinding for profile '{profile.Name.Text}'.");
                         shouldRebind = true;
                     }
                 }
 
-                _gearConditionState[key] = currentSatisfied;
+                _conditionState[key] = currentSatisfied;
             }
 
             if (shouldRebind && Armatures.TryGetValue(actorId, out var armature))

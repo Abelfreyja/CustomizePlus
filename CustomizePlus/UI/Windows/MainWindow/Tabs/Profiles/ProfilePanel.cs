@@ -22,6 +22,7 @@ using OtterGui;
 using OtterGui.Extensions;
 using OtterGui.Raii;
 using Penumbra.GameData.Actors;
+using Penumbra.GameData.Enums;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -129,6 +130,7 @@ public class ProfilePanel
         {
             ConditionType.Mod => new Vector4(0.55f, 0.80f, 1f, 1f),
             ConditionType.Gear => new Vector4(0.95f, 0.75f, 0.45f, 1f),
+            ConditionType.Race => new Vector4(0.70f, 0.55f, 0.95f, 1f),
             _ => Vector4.One
         };
 
@@ -156,6 +158,46 @@ public class ProfilePanel
             Clamp(color.Z * factor),
             Clamp(color.W * alphaFactor));
     }
+
+    private static IReadOnlyList<SubRace> GetSubRacesForRace(Race race)
+        => race switch
+        {
+            Race.Hyur => new[] { SubRace.Midlander, SubRace.Highlander },
+            Race.Elezen => new[] { SubRace.Wildwood, SubRace.Duskwight },
+            Race.Lalafell => new[] { SubRace.Plainsfolk, SubRace.Dunesfolk },
+            Race.Miqote => new[] { SubRace.SeekerOfTheSun, SubRace.KeeperOfTheMoon },
+            Race.Roegadyn => new[] { SubRace.Seawolf, SubRace.Hellsguard },
+            Race.AuRa => new[] { SubRace.Raen, SubRace.Xaela },
+            Race.Hrothgar => new[] { SubRace.Helion, SubRace.Lost },
+            Race.Viera => new[] { SubRace.Rava, SubRace.Veena },
+            _ => Array.Empty<SubRace>(),
+        };
+
+    private void EnsureValidRaceSelection()
+    {
+        var clans = GetSubRacesForRace(_newRaceRace);
+        if (clans.Count == 0)
+        {
+            _newRaceClan = SubRace.Unknown;
+            return;
+        }
+
+        if (!clans.Contains(_newRaceClan))
+            _newRaceClan = clans[0];
+    }
+
+    private static string DescribeRaceCondition(RaceCondition condition)
+    {
+        var raceName = condition.Race.ToName();
+        var clanName = condition.Clan.ToName();
+        var genderName = condition.Gender.ToName();
+        return $"{raceName} ({clanName}) - {genderName}";
+    }
+
+    private bool CanAddRaceCondition()
+        => _newRaceRace != Race.Unknown
+           && _newRaceClan != SubRace.Unknown
+           && (_newRaceGender == Gender.Male || _newRaceGender == Gender.Female);
 
     private void DrawMultiSelection()
     {
@@ -599,6 +641,9 @@ public class ProfilePanel
 
     private GearSelector? _gearSelector;
     private ModSelector? _modSelector;
+    private Gender _newRaceGender = Gender.Male;
+    private Race _newRaceRace = Race.Hyur;
+    private SubRace _newRaceClan = SubRace.Midlander;
 
     private string _selectedModName = "";
     private int _selectedModIndex = 0;
@@ -740,10 +785,73 @@ public class ProfilePanel
             _modSelector ??= new ModSelector(_modService);
             _modSelector.Draw();
         }
+        else if (_newConditionType == ConditionType.Race)
+        {
+            EnsureValidRaceSelection();
+
+            if (ImGui.BeginCombo("Gender##RaceConditionGender", _newRaceGender.ToName()))
+            {
+                var genders = new[] { Gender.Male, Gender.Female };
+                foreach (var gender in genders)
+                {
+                    bool selected = _newRaceGender == gender;
+                    if (ImGui.Selectable(gender.ToName(), selected))
+                    {
+                        _newRaceGender = gender;
+                    }
+
+                    if (selected)
+                        ImGui.SetItemDefaultFocus();
+                }
+
+                ImGui.EndCombo();
+            }
+
+            if (ImGui.BeginCombo("Race##RaceConditionRace", _newRaceRace.ToName()))
+            {
+                foreach (Race race in Enum.GetValues(typeof(Race)))
+                {
+                    if (race == Race.Unknown)
+                        continue;
+
+                    bool selected = _newRaceRace == race;
+                    if (ImGui.Selectable(race.ToName(), selected))
+                    {
+                        _newRaceRace = race;
+                        EnsureValidRaceSelection();
+                    }
+
+                    if (selected)
+                        ImGui.SetItemDefaultFocus();
+                }
+
+                ImGui.EndCombo();
+            }
+
+            var availableClans = GetSubRacesForRace(_newRaceRace);
+            var clanLabel = availableClans.Count > 0 ? _newRaceClan.ToName() : "No Clans";
+            if (ImGui.BeginCombo("Clan##RaceConditionClan", clanLabel))
+            {
+                foreach (var clan in availableClans)
+                {
+                    bool selected = _newRaceClan == clan;
+                    if (ImGui.Selectable(clan.ToName(), selected))
+                    {
+                        _newRaceClan = clan;
+                    }
+
+                    if (selected)
+                        ImGui.SetItemDefaultFocus();
+                }
+
+                ImGui.EndCombo();
+            }
+        }
 
         bool canAdd =
             (_newConditionType == ConditionType.Gear && _gearSelector?.SelectedItem != null)
-            || (_newConditionType == ConditionType.Mod && _modSelector?.SelectedMod is not null);
+            || (_newConditionType == ConditionType.Mod && _modSelector?.SelectedMod is not null)
+            || (_newConditionType == ConditionType.Race && CanAddRaceCondition());
 
         if (ImGui.Button("Add Condition") && canAdd)
         {
@@ -761,6 +869,11 @@ public class ProfilePanel
                 var condition = new ModCondition(modName);
                 _manager.AddModCondition(profile, condition);
                 _modSelector = null;
+            }
+            else if (_newConditionType == ConditionType.Race && CanAddRaceCondition())
+            {
+                var condition = new RaceCondition(_newRaceRace, _newRaceClan, _newRaceGender);
+                _manager.AddRaceCondition(profile, condition);
             }
         }
 
@@ -811,6 +924,7 @@ public class ProfilePanel
                     {
                         ModCondition => new Vector4(0.55f, 0.80f, 1f, 1f),
                         GearCondition => new Vector4(0.95f, 0.75f, 0.45f, 1f),
+                        RaceCondition => new Vector4(0.70f, 0.55f, 0.95f, 1f),
                         _ => ImGuiColors.DalamudWhite,
                     };
                     ImGui.TextColored(typeColor, cond.Type.ToString());
@@ -850,6 +964,10 @@ public class ProfilePanel
                         {
                             ImGui.TextUnformatted($"Slot {gearCond.Slot} | Model {gearCond.ModelId}");
                         }
+                    }
+                    else if (cond is RaceCondition raceCond)
+                    {
+                        ImGui.TextUnformatted(DescribeRaceCondition(raceCond));
                     }
                     else
                     {

@@ -459,6 +459,18 @@ public partial class ProfileManager : IDisposable
         _event.Invoke(ProfileChanged.Type.ModifiedConditions, profile, condition);
     }
 
+    public void AddRaceCondition(Profile profile, RaceCondition condition)
+    {
+        if (profile.Conditions.Contains(condition))
+            return;
+
+        profile.Conditions.Add(condition);
+        SaveProfile(profile);
+
+        _logger.Debug($"Added race condition '{condition.Race} - {condition.Clan} - {condition.Gender}' to profile {profile.UniqueId}.");
+        _event.Invoke(ProfileChanged.Type.ModifiedConditions, profile, condition);
+    }
+
     public void RemoveCondition(Profile profile, ProfileCondition condition)
     {
         if (!profile.Conditions.Contains(condition))

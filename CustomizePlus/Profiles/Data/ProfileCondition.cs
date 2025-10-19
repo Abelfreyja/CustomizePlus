@@ -1,8 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using CustomizePlus.Profiles.Enums;
 using CustomizePlus.Game.Helpers;
+using CustomizePlus.Profiles.Enums;
 using Newtonsoft.Json.Linq;
+using Penumbra.GameData.Enums;
 
 namespace CustomizePlus.Profiles.Data
 {
@@ -34,6 +35,11 @@ namespace CustomizePlus.Profiles.Data
                     case GearCondition gear:
                         obj["Slot"] = gear.Slot.ToString();
                         obj["ModelId"] = gear.ModelId;
+                        break;
+                    case RaceCondition race:
+                        obj["Race"] = race.Race.ToString();
+                        obj["Gender"] = race.Gender.ToString();
+                        obj["Clan"] = race.Clan.ToString();
                         break;
                 }
                 arr.Add(obj);
@@ -69,6 +75,20 @@ namespace CustomizePlus.Profiles.Data
                                 yield return gearCond;
                             }
                             break;
+                        case ConditionType.Race:
+                            if (!Enum.TryParse<Race>(obj["Race"]?.ToString(), out var raceValue))
+                                break;
+                            if (!Enum.TryParse<Gender>(obj["Gender"]?.ToString(), out var genderValue))
+                                break;
+                            if (!Enum.TryParse<SubRace>(obj["Clan"]?.ToString(), out var clanValue))
+                                break;
+
+                            var raceCond = new RaceCondition(raceValue, clanValue, genderValue)
+                            {
+                                Enabled = enabled
+                            };
+                            yield return raceCond;
+                            break;
                     }
                 }
             }
@@ -92,6 +112,21 @@ namespace CustomizePlus.Profiles.Data
         {
             Slot = slot;
             ModelId = modelId;
+        }
+    }
+
+    public class RaceCondition : ProfileCondition
+    {
+        public Race Race { get; set; }
+        public SubRace Clan { get; set; }
+        public Gender Gender { get; set; }
+
+        public RaceCondition(Race race, SubRace clan, Gender gender)
+            : base(ConditionType.Race)
+        {
+            Race = race;
+            Clan = clan;
+            Gender = gender;
         }
     }
 }

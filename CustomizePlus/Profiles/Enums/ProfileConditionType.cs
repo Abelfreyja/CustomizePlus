@@ -9,6 +9,7 @@ namespace CustomizePlus.Profiles.Enums
     public enum ConditionType
     {
         Gear,
-        Mod
+        Mod,
+        Race
     }
 }
