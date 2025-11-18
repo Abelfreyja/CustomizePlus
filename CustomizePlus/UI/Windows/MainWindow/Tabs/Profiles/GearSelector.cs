@@ -2,6 +2,7 @@
 using CustomizePlus.Game.Services;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
+using Dalamud.Interface.Colors;
 using Dalamud.Interface.Textures;
 using Dalamud.Plugin.Services;
 using Lumina.Excel.Sheets;
@@ -15,6 +16,10 @@ namespace CustomizePlus.UI.Windows.MainWindow.Tabs.Profiles
 {
     public class GearSelector
     {
+        private const float CellPaddingX = 4f;
+        private const float CellPaddingY = 2f;
+        private const float IconColumnExtraWidth = 8f;
+
         private readonly GearDataService _gearDataService;
         private readonly ITextureProvider _textureProvider;
         private readonly GearSlot _slot;
@@ -40,97 +45,105 @@ namespace CustomizePlus.UI.Windows.MainWindow.Tabs.Profiles
             _selectedItem = null;
         }
 
-        public void Draw(float iconSize = 60f)
+        public void Draw(float iconSize = 40f)
         {
             if (_items == null)
                 return;
 
+            var style = ImGui.GetStyle();
+            var regionAvail = ImGui.GetContentRegionAvail();
+            var searchWidth = Math.Max(160f, regionAvail.X - 110f);
+
+            ImGui.SetNextItemWidth(searchWidth);
             ImGui.InputTextWithHint("##GearSearch", "Search gear...", ref _search, 64);
 
             var filtered = string.IsNullOrWhiteSpace(_search)
                 ? _items
                 : _items.Where(i => i.Name.ToString().Contains(_search, StringComparison.OrdinalIgnoreCase)).ToList();
 
-            ImGui.BeginChild("GearList", new Vector2(0, 300), true);
+            ImGui.SameLine();
+            ImGui.TextDisabled($"{filtered.Count:#,0}/{_items.Count:#,0}");
 
-            for (int i = 0; i < filtered.Count; i++)
+            ImGui.BeginChild("GearList", new Vector2(0f, 320f), true, ImGuiWindowFlags.HorizontalScrollbar);
+
+            if (filtered.Count == 0)
             {
-                var item = filtered[i];
-                var selected = _selectedItem != null && _selectedItem.Value.RowId == item.RowId;
-
-                float spacingY = 4f;
-                float rowHeight = iconSize + spacingY * 2;
-                float rowWidth = ImGui.GetContentRegionAvail().X;
-
-                if (ImGui.Selectable($"##gear_{i}", selected, ImGuiSelectableFlags.None, new Vector2(rowWidth, rowHeight)))
-                    _selectedItem = item;
-
-                var cursorPos = ImGui.GetItemRectMin();
-
-                var rectMin = cursorPos;
-                var rectMax = new Vector2(cursorPos.X + rowWidth, cursorPos.Y + rowHeight);
-                var drawList = ImGui.GetWindowDrawList();
-                var borderColor = ImGui.GetColorU32(ImGuiCol.Border);
-                var bgColor = ImGui.GetColorU32(ImGuiCol.ChildBg);
-
-                drawList.AddRectFilled(rectMin, rectMax, bgColor);
-                drawList.AddRect(rectMin, rectMax, borderColor, 4f);
-
-                float textHeight = ImGui.GetTextLineHeightWithSpacing() * 3;
-                float textOffsetY = (rowHeight - textHeight) * 0.5f;
-                float iconOffsetY = (rowHeight - iconSize) * 0.5f;
-
-                ImGui.SetCursorScreenPos(new Vector2(cursorPos.X + 4, cursorPos.Y + iconOffsetY));
-                var icon = _textureProvider.GetFromGameIcon(new GameIconLookup(item.Icon));
-                if (icon.TryGetWrap(out var wrap, out _))
-                    ImGui.Image(wrap.Handle, new Vector2(iconSize));
-                else
-                    ImGui.Dummy(new Vector2(iconSize));
-
-                ImGui.SetCursorScreenPos(new Vector2(cursorPos.X + iconSize + 12, cursorPos.Y + textOffsetY));
-
-                var modelId = item.ModelMain;
-                var modelBase = (modelId >> 16) & 0xFFFF;
-                var modelVariant = modelId & 0xFFFF;
-
-                ImGui.BeginGroup();
-
-                string name = item.Name.ToString();
-                float maxTextWidth = rowWidth - (iconSize + 24);
-                float nameWidth = ImGui.CalcTextSize(name).X;
-
-                string displayName = name;
-                bool wasTruncated = false;
-
-                if (nameWidth > maxTextWidth)
-                {
-                    for (int len = name.Length - 1; len > 0; len--)
-                    {
-                        string test = name[..len] + "...";
-                        if (ImGui.CalcTextSize(test).X <= maxTextWidth)
-                        {
-                            displayName = test;
-                            wasTruncated = true;
-                            break;
-                        }
-                    }
-
-                    if (!wasTruncated)
-                        displayName = "...";
-                }
-
-                ImGui.TextUnformatted(displayName);
-                if (wasTruncated && ImGui.IsItemHovered())
-                    ImGui.SetTooltip(name);
-
-                ImGui.TextUnformatted($"{modelBase}, {modelVariant}");
-                ImGui.TextUnformatted(_slot.ToString());
-
-                ImGui.EndGroup();
-
-                ImGui.Dummy(new Vector2(1, spacingY));
+                ImGui.PushStyleColor(ImGuiCol.Text, ImGuiColors.DalamudOrange);
+                ImGui.TextWrapped("No gear matches your search.");
+                ImGui.PopStyleColor();
+                ImGui.EndChild();
+                return;
             }
 
+            var tableFlags = ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.SizingFixedFit;
+
+            ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(CellPaddingX, CellPaddingY));
+
+            if (ImGui.BeginTable("GearSelectorTable", 2, tableFlags, new Vector2(-1f, -1f)))
+            {
+                ImGui.TableSetupColumn("Icon", ImGuiTableColumnFlags.WidthFixed, iconSize + IconColumnExtraWidth);
+                ImGui.TableSetupColumn("Info", ImGuiTableColumnFlags.WidthStretch);
+
+                var cellPadding = ImGui.GetStyle().CellPadding;
+                var lineHeight = ImGui.GetTextLineHeight();
+                var textSpacing = style.ItemSpacing.Y;
+                var textBlockHeight = lineHeight * 2f + textSpacing;
+                var rowHeight = MathF.Max(iconSize, textBlockHeight) + cellPadding.Y * 2f;
+
+                for (int i = 0; i < filtered.Count; i++)
+                {
+                    var item = filtered[i];
+                    var selected = _selectedItem != null && _selectedItem.Value.RowId == item.RowId;
+
+                    ImGui.TableNextRow(ImGuiTableRowFlags.None, rowHeight);
+                    ImGui.TableSetColumnIndex(0);
+                    ImGui.PushID(item.RowId);
+
+                    if (ImGui.Selectable("##GearRow", selected, ImGuiSelectableFlags.SpanAllColumns, new Vector2(0f, rowHeight)))
+                        _selectedItem = item;
+
+                    var rowMin = ImGui.GetItemRectMin();
+                    var rowMax = ImGui.GetItemRectMax();
+                    var contentHeight = (rowMax.Y - rowMin.Y) - cellPadding.Y * 2f;
+                    var contentTop = rowMin.Y + cellPadding.Y;
+                    var iconTop = contentTop + MathF.Max(0f, (contentHeight - iconSize) * 0.5f);
+                    var iconPos = new Vector2(rowMin.X + cellPadding.X, iconTop);
+                    var iconMax = iconPos + new Vector2(iconSize);
+
+                    var iconTexture = _textureProvider.GetFromGameIcon(new GameIconLookup(item.Icon));
+                    var drawList = ImGui.GetWindowDrawList();
+
+                    if (iconTexture.TryGetWrap(out var wrap, out _))
+                        drawList.AddImage(wrap.Handle, iconPos, iconMax);
+                    else
+                        drawList.AddRectFilled(iconPos, iconMax, ImGui.GetColorU32(ImGuiCol.FrameBg), 4f);
+
+                    ImGui.TableSetColumnIndex(1);
+                    var columnCursor = ImGui.GetCursorScreenPos();
+                    var textCursorY = columnCursor.Y + MathF.Max(0f, (contentHeight - textBlockHeight) * 0.5f);
+                    ImGui.SetCursorScreenPos(new Vector2(columnCursor.X, textCursorY));
+
+                    string name = item.Name.ToString();
+                    ImGui.TextUnformatted(name);
+
+                    var modelId = item.ModelMain;
+                    var modelBase = (modelId >> 16) & 0xFFFF;
+                    var modelVariant = modelId & 0xFFFF;
+                    string slotName = GearSlotHelper.DisplayName(_slot);
+                    string infoText = $"Model {modelBase}, {modelVariant} | {slotName}";
+
+
+                    ImGui.PushStyleColor(ImGuiCol.Text, ImGuiColors.DalamudGrey);
+                    ImGui.TextUnformatted(infoText);
+                    ImGui.PopStyleColor();
+
+                    ImGui.PopID();
+                }
+
+                ImGui.EndTable();
+            }
+
+            ImGui.PopStyleVar();
             ImGui.EndChild();
         }
 

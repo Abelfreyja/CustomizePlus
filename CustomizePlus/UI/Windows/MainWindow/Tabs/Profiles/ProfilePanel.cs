@@ -726,6 +726,9 @@ public class ProfilePanel
 
                 ImGui.Image(icon.Handle, new Vector2(36, 36), Vector2.Zero, Vector2.One, tintColor, Vector4.Zero);
 
+                if (ImGui.IsItemHovered())
+                    ImGui.SetTooltip(GearSlotHelper.DisplayName(slot));
+
                 if (ImGui.IsItemClicked())
                 {
                     _selectedGearSlot = slot;
@@ -734,6 +737,9 @@ public class ProfilePanel
                     ImGui.OpenPopup("GearSelectorPopup");
                 }
 
+                const float gearPopupIconSize = 40f;
+                ImGui.SetNextWindowSize(new Vector2(400f, 0f), ImGuiCond.Appearing);
+
                 if (ImGui.BeginPopup("GearSelectorPopup"))
                 {
                     if (_gearPopupJustOpened)
@@ -741,7 +747,7 @@ public class ProfilePanel
                         _gearPopupJustOpened = false;
                     }
 
-                    _gearSelector?.Draw();
+                    _gearSelector?.Draw(gearPopupIconSize);
                     ImGui.EndPopup();
                 }
                 else if (!_gearPopupJustOpened && _selectedGearSlot == slot && _gearSelector?.SelectedItem == null)
@@ -774,7 +780,8 @@ public class ProfilePanel
                 ImGui.BeginGroup();
                 ImGui.TextUnformatted(selectedItem.Name.ToString());
                 ImGui.TextUnformatted($"Model: {modelBase}, {modelVariant}");
-                ImGui.TextUnformatted($"Slot: {_selectedGearSlot}");
+                var slotName = _selectedGearSlot.HasValue ? GearSlotHelper.DisplayName(_selectedGearSlot.Value) : "None";
+                ImGui.TextUnformatted($"Slot: {slotName}");
                 ImGui.EndGroup();
 
                 ImGui.EndGroup();
@@ -958,11 +965,13 @@ public class ProfilePanel
                             }
 
                             var name = gearItem.Name.ToString();
-                            ImGui.TextUnformatted($"{name} ({gearCond.Slot} #{gearCond.ModelId})");
+                            var slotName = GearSlotHelper.DisplayName(gearCond.Slot);
+                            ImGui.TextUnformatted($"{name} ({slotName} #{gearCond.ModelId})");
                         }
                         else
                         {
-                            ImGui.TextUnformatted($"Slot {gearCond.Slot} | Model {gearCond.ModelId}");
+                            var slotName = GearSlotHelper.DisplayName(gearCond.Slot);
+                            ImGui.TextUnformatted($"Slot {slotName} | Model {gearCond.ModelId}");
                         }
                     }
                     else if (cond is RaceCondition raceCond)
