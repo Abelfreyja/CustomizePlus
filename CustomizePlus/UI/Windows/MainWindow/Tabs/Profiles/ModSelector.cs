@@ -34,7 +34,7 @@ public class ModSelector
         _selectedMod = null;
     }
 
-    public void Draw(float rowHeight = 28f)
+    public void Draw(float rowHeight = 24f)
     {
         var style = ImGui.GetStyle();
         var regionAvail = ImGui.GetContentRegionAvail();
@@ -69,15 +69,15 @@ public class ModSelector
             return;
         }
 
-        var itemHeight = Math.Max(rowHeight, ImGui.GetTextLineHeight() + style.FramePadding.Y * 2f);
-        var childBg = style.Colors[(int)ImGuiCol.ChildBg];
-        var rowBgVec = new Vector4(childBg.X, childBg.Y, childBg.Z, MathF.Min(childBg.W + 0.35f, 0.95f));
-        var hoverBgVec = new Vector4(rowBgVec.X + 0.05f, rowBgVec.Y + 0.05f, rowBgVec.Z + 0.05f, MathF.Min(rowBgVec.W + 0.1f, 1f));
+        var textPaddingX = 6f;
+        var textPaddingY = 3f;
+        var itemHeight = Math.Max(rowHeight, ImGui.GetTextLineHeight() + textPaddingY * 2f);
 
-        var rowBg = ImGui.ColorConvertFloat4ToU32(rowBgVec);
-        var hoverBg = ImGui.ColorConvertFloat4ToU32(hoverBgVec);
-        var selectedBg = ImGui.ColorConvertFloat4ToU32(new Vector4(0.33f, 0.57f, 0.94f, 0.32f));
-        var selectedBorder = ImGui.ColorConvertFloat4ToU32(new Vector4(0.33f, 0.57f, 0.94f, 0.75f));
+        var childBg = style.Colors[(int)ImGuiCol.ChildBg];
+        var baseBg = ImGui.GetColorU32(new Vector4(0.1f, 0.1f, 0.1f, 0.8f));
+        var hoverBg = ImGui.GetColorU32(new Vector4(0.2f, 0.2f, 0.2f, 0.8f));
+        var selectedBg = ImGui.GetColorU32(new Vector4(0.55f, 0.80f, 1f, 0.5f));
+        var selectedBorder = ImGui.GetColorU32(ImGuiCol.Border);
         var separatorColor = ImGui.GetColorU32(ImGuiCol.Border);
         var searchHighlightBg = ImGui.ColorConvertFloat4ToU32(new Vector4(0.4f, 0.56f, 0.4f, 0.8f));
         var textColor = ImGui.GetColorU32(ImGuiCol.Text);
@@ -98,26 +98,25 @@ public class ModSelector
             var itemMax = ImGui.GetItemRectMax();
             var drawList = ImGui.GetWindowDrawList();
 
-            drawList.AddRectFilled(itemMin, itemMax, rowBg, style.FrameRounding);
-
+            var fillColor = baseBg;
             if (selected)
-                drawList.AddRectFilled(itemMin, itemMax, selectedBg, style.FrameRounding);
+                fillColor = selectedBg;
             else if (ImGui.IsItemHovered())
-                drawList.AddRectFilled(itemMin, itemMax, hoverBg, style.FrameRounding);
+                fillColor = hoverBg;
+
+            drawList.AddRectFilled(itemMin, itemMax, fillColor);
 
             if (selected)
-                drawList.AddRect(itemMin, itemMax, selectedBorder, style.FrameRounding, ImDrawFlags.None, 1.35f);
-            else
-                drawList.AddRect(itemMin, itemMax, rowBg, style.FrameRounding, ImDrawFlags.None, 0.9f);
+                drawList.AddRect(itemMin, itemMax, selectedBorder);
 
-            var textY = itemMin.Y + (itemHeight - ImGui.GetTextLineHeight()) * 0.5f;
-            var textPos = new Vector2(itemMin.X + style.FramePadding.X * 2f, textY);
+            var textY = itemMin.Y + textPaddingY;
+            var textPos = new Vector2(itemMin.X + textPaddingX, textY);
 
             drawList.PushClipRect(itemMin, itemMax, true);
             DrawHighlightedText(drawList, textPos, mod, _search, textColor, searchHighlightBg, textColor);
             drawList.PopClipRect();
 
-            var availableTextWidth = itemMax.X - textPos.X - style.FramePadding.X;
+            var availableTextWidth = itemMax.X - textPos.X - textPaddingX;
             var fullWidth = ImGui.CalcTextSize(mod).X;
             if (ImGui.IsItemHovered() && fullWidth > availableTextWidth + 1f)
                 ImGui.SetTooltip(mod);
