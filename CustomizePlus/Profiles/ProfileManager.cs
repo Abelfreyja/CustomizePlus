@@ -444,7 +444,7 @@ public partial class ProfileManager : IDisposable
         SaveProfile(profile);
 
         _logger.Debug($"Added gear condition {condition.Slot} - {condition.ModelId} to profile {profile.UniqueId}.");
-        _event.Invoke(ProfileChanged.Type.ModifiedConditions, profile, condition);
+        _event.Invoke(ProfileChanged.Type.AddedCondition, profile, condition);
     }
 
     public void AddModCondition(Profile profile, ModCondition condition)
@@ -456,7 +456,7 @@ public partial class ProfileManager : IDisposable
         SaveProfile(profile);
 
         _logger.Debug($"Added mod condition '{condition.ModName}' to profile {profile.UniqueId}.");
-        _event.Invoke(ProfileChanged.Type.ModifiedConditions, profile, condition);
+        _event.Invoke(ProfileChanged.Type.AddedCondition, profile, condition);
     }
 
     public void AddRaceCondition(Profile profile, RaceCondition condition)
@@ -468,7 +468,21 @@ public partial class ProfileManager : IDisposable
         SaveProfile(profile);
 
         _logger.Debug($"Added race condition '{condition.Race} - {condition.Clan} - {condition.Gender}' to profile {profile.UniqueId}.");
-        _event.Invoke(ProfileChanged.Type.ModifiedConditions, profile, condition);
+        _event.Invoke(ProfileChanged.Type.AddedCondition, profile, condition);
+    }
+
+    public void AddEmoteCondition(Profile profile, EmoteCondition condition)
+    {
+        if (profile.Conditions.Contains(condition))
+            return;
+
+        profile.Conditions.Add(condition);
+        SaveProfile(profile);
+
+        var label = $"#{condition.EmoteId}";
+
+        _logger.Debug($"Added emote condition {label} to profile {profile.UniqueId}.");
+        _event.Invoke(ProfileChanged.Type.AddedCondition, profile, condition);
     }
 
     public void RemoveCondition(Profile profile, ProfileCondition condition)

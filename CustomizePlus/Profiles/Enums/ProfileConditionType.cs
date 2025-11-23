@@ -10,6 +10,7 @@ namespace CustomizePlus.Profiles.Enums
     {
         Gear,
         Mod,
-        Race
+        Race,
+        Emote
     }
 }

@@ -36,9 +36,10 @@ public sealed class ProfileChanged() : EventWrapper<ProfileChanged.Type, Profile
 
         EnabledConditions, // changes the whole conditions feature on a profile
         DisabledConditions,
-        ModifiedConditions,
+
         EnabledCondition, // changes just one specific condition on a profile
         DisabledCondition,
+        AddedCondition,
         RemovedCondition
     }
 

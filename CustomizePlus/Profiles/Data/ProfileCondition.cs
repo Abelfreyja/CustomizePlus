@@ -41,6 +41,9 @@ namespace CustomizePlus.Profiles.Data
                         obj["Gender"] = race.Gender.ToString();
                         obj["Clan"] = race.Clan.ToString();
                         break;
+                    case EmoteCondition emote:
+                        obj["EmoteId"] = emote.EmoteId;
+                        break;
                 }
                 arr.Add(obj);
             }
@@ -89,6 +92,21 @@ namespace CustomizePlus.Profiles.Data
                             };
                             yield return raceCond;
                             break;
+                        case ConditionType.Emote:
+                            var emoteIdToken = obj["EmoteId"];
+                            if (emoteIdToken == null)
+                                break;
+
+                            var emoteId = emoteIdToken.ToObject<ushort?>();
+                            if (emoteId is null)
+                                break;
+
+                            var emoteCond = new EmoteCondition(emoteId.Value)
+                            {
+                                Enabled = enabled
+                            };
+                            yield return emoteCond;
+                            break;
                     }
                 }
             }
@@ -129,5 +147,14 @@ namespace CustomizePlus.Profiles.Data
             Gender = gender;
         }
     }
-}
 
+    public class EmoteCondition : ProfileCondition
+    {
+        public ushort EmoteId { get; set; }
+        public EmoteCondition(ushort emoteId)
+            : base(ConditionType.Emote)
+        {
+            EmoteId = emoteId;
+        }
+    }
+}

@@ -42,6 +42,7 @@ public class ProfilePanel
     private readonly ActorManager _actorManager;
     private readonly TemplateEditorEvent _templateEditorEvent;
     private readonly GearDataService _gearDataService;
+    private readonly EmoteService _emoteService;
     private readonly GearSlotIconService _gearSlotIconService;
     private readonly ITextureProvider _textureProvider;
     private readonly PenumbraIpcHandler _penumbraIpc;
@@ -69,6 +70,7 @@ public class ProfilePanel
         ActorManager actorManager,
         TemplateEditorEvent templateEditorEvent,
         GearDataService gearDataService,
+        EmoteService emoteService,
         GearSlotIconService gearSlotIconService,
         ITextureProvider textureProvider,
         PenumbraIpcHandler penumbraIpc,
@@ -83,6 +85,7 @@ public class ProfilePanel
         _actorManager = actorManager;
         _templateEditorEvent = templateEditorEvent;
         _gearDataService = gearDataService;
+        _emoteService = emoteService;
         _gearSlotIconService = gearSlotIconService;
         _textureProvider = textureProvider;
         _penumbraIpc = penumbraIpc;
@@ -131,6 +134,7 @@ public class ProfilePanel
             ConditionType.Mod => new Vector4(0.55f, 0.80f, 1f, 1f),
             ConditionType.Gear => new Vector4(0.95f, 0.75f, 0.45f, 1f),
             ConditionType.Race => new Vector4(0.70f, 0.55f, 0.95f, 1f),
+            ConditionType.Emote => new Vector4(0.45f, 0.85f, 0.65f, 1f),
             _ => Vector4.One
         };
 
@@ -192,6 +196,15 @@ public class ProfilePanel
         var clanName = condition.Clan.ToName();
         var genderName = condition.Gender.ToName();
         return $"{raceName} ({clanName}) - {genderName}";
+    }
+
+    private string DescribeEmoteCondition(EmoteCondition condition)
+    {
+        var entry = _emoteService.FindById(condition.EmoteId);
+        if (entry != null)
+            return $"{entry.Name} (#{entry.Id})";
+
+        return $"Emote #{condition.EmoteId}";
     }
 
     private bool CanAddRaceCondition()
@@ -641,13 +654,10 @@ public class ProfilePanel
 
     private GearSelector? _gearSelector;
     private ModSelector? _modSelector;
+    private EmoteSelector? _emoteSelector;
     private Gender _newRaceGender = Gender.Male;
     private Race _newRaceRace = Race.Hyur;
     private SubRace _newRaceClan = SubRace.Midlander;
-
-    private string _selectedModName = "";
-    private int _selectedModIndex = 0;
-    private List<string> _availableModNames = new();
 
     private void DrawConditionsArea()
     {
@@ -854,11 +864,18 @@ public class ProfilePanel
                 ImGui.EndCombo();
             }
         }
+        else if (_newConditionType == ConditionType.Emote)
+        {
+            _emoteSelector ??= new EmoteSelector(_emoteService, _textureProvider);
+
+            _emoteSelector.Draw();
+        }
 
         bool canAdd =
             (_newConditionType == ConditionType.Gear && _gearSelector?.SelectedItem != null)
             || (_newConditionType == ConditionType.Mod && _modSelector?.SelectedMod is not null)
-            || (_newConditionType == ConditionType.Race && CanAddRaceCondition());
+            || (_newConditionType == ConditionType.Race && CanAddRaceCondition())
+            || (_newConditionType == ConditionType.Emote && _emoteSelector?.SelectedEmote is not null);
 
         if (ImGui.Button("Add Condition") && canAdd)
         {
@@ -881,6 +898,12 @@ public class ProfilePanel
             {
                 var condition = new RaceCondition(_newRaceRace, _newRaceClan, _newRaceGender);
                 _manager.AddRaceCondition(profile, condition);
+            }
+            else if (_newConditionType == ConditionType.Emote && _emoteSelector?.SelectedEmote is { } emote)
+            {
+                var condition = new EmoteCondition(emote.Id);
+                _manager.AddEmoteCondition(profile, condition);
+                _emoteSelector = null;
             }
         }
 
@@ -932,6 +955,7 @@ public class ProfilePanel
                         ModCondition => new Vector4(0.55f, 0.80f, 1f, 1f),
                         GearCondition => new Vector4(0.95f, 0.75f, 0.45f, 1f),
                         RaceCondition => new Vector4(0.70f, 0.55f, 0.95f, 1f),
+                        EmoteCondition => new Vector4(0.45f, 0.85f, 0.65f, 1f),
                         _ => ImGuiColors.DalamudWhite,
                     };
                     ImGui.TextColored(typeColor, cond.Type.ToString());
@@ -977,6 +1001,25 @@ public class ProfilePanel
                     else if (cond is RaceCondition raceCond)
                     {
                         ImGui.TextUnformatted(DescribeRaceCondition(raceCond));
+                    }
+                    else if (cond is EmoteCondition emoteCond)
+                    {
+                        var entry = _emoteService.FindById(emoteCond.EmoteId);
+                        if (entry is { } emoteEntry)
+                        {
+                            var icon = _textureProvider.GetFromGameIcon(new GameIconLookup(emoteEntry.IconId));
+                            if (icon.TryGetWrap(out var wrap, out _))
+                            {
+                                ImGui.Image(wrap.Handle, new Vector2(18f, 18f));
+                                ImGui.SameLine(0, 6f);
+                            }
+
+                            ImGui.TextUnformatted($"{emoteEntry.Name} (#{emoteEntry.Id})");
+                        }
+                        else
+                        {
+                            ImGui.TextUnformatted(DescribeEmoteCondition(emoteCond));
+                        }
                     }
                     else
                     {

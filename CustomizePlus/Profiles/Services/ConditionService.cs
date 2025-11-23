@@ -75,6 +75,12 @@ public class ConditionService : IDisposable
             return false;
         }
 
+        if (!actor.IsCharacter)
+        {
+            _logger.Debug($"Condition check failed: actor {actorId.IncognitoDebug()} is not a character (profile {profile.UniqueId}).");
+            return false;
+        }
+
         var modConditions = enabledConditions.OfType<ModCondition>().ToList();
         if (modConditions.Count > 0)
         {
@@ -103,8 +109,9 @@ public class ConditionService : IDisposable
 
         var gearConditions = enabledConditions.OfType<GearCondition>().ToList();
         var raceConditions = enabledConditions.OfType<RaceCondition>().ToList();
+        var emoteConditions = enabledConditions.OfType<EmoteCondition>().ToList();
 
-        if (gearConditions.Count == 0 && raceConditions.Count == 0)
+        if (gearConditions.Count == 0 && raceConditions.Count == 0 && emoteConditions.Count == 0)
             return true;
 
         var actorAddress = actor.Address;
@@ -123,7 +130,20 @@ public class ConditionService : IDisposable
 
         if (gearConditions.Count > 0)
         {
-            var human = (Human*)character->DrawObject;
+            var model = actor.Model;
+            if (!model.Valid)
+            {
+                _logger.Debug($"Gear condition check failed: actor model invalid for {actorId.IncognitoDebug()} (profile {profile.UniqueId}).");
+                return false;
+            }
+
+            if (!model.IsHuman)
+            {
+                _logger.Debug($"Gear condition check failed: actor model is not human for {actorId.IncognitoDebug()} (profile {profile.UniqueId}).");
+                return false;
+            }
+
+            var human = model.AsHuman;
             if (human == null)
             {
                 _logger.Debug($"Gear condition check failed: human draw object null for {actorId.IncognitoDebug()} (profile {profile.UniqueId}).");
@@ -150,9 +170,9 @@ public class ConditionService : IDisposable
         if (raceConditions.Count > 0)
         {
             var model = actor.Model;
-            if (!model.IsHuman)
+            if (!model.Valid || !model.IsHuman)
             {
-                _logger.Debug($"Race condition check failed: actor model is not human for {actorId.IncognitoDebug()} (profile {profile.UniqueId}).");
+                _logger.Debug($"Race condition check failed: actor model is not a valid human for {actorId.IncognitoDebug()} (profile {profile.UniqueId}).");
                 return false;
             }
 
@@ -178,6 +198,19 @@ public class ConditionService : IDisposable
             }
 
             _logger.Debug($"Race condition satisfied for profile {profile.UniqueId}: actor {actorId.IncognitoDebug()} is {Describe(actualRace, actualClan, actualGender)}.");
+        }
+
+        if (emoteConditions.Count > 0)
+        {
+            var currentEmoteId = character->EmoteController.EmoteId;
+
+            if (!emoteConditions.Any(cond => cond.EmoteId == currentEmoteId))
+            {
+                var expected = string.Join(", ", emoteConditions.Select(cond => $"#{cond.EmoteId}"));
+
+                _logger.Debug($"Emote condition not met for profile {profile.UniqueId}: expected one of [{expected}], actual #{currentEmoteId} for actor {actorId.IncognitoDebug()}.");
+                return false;
+            }
         }
 
         return true;

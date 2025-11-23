@@ -520,7 +520,7 @@ public unsafe sealed class ArmatureManager : IDisposable
 
             type is not ProfileChanged.Type.EnabledConditions &&
             type is not ProfileChanged.Type.DisabledConditions &&
-            type is not ProfileChanged.Type.ModifiedConditions &&
+            type is not ProfileChanged.Type.AddedCondition &&
             type is not ProfileChanged.Type.EnabledCondition &&
             type is not ProfileChanged.Type.DisabledCondition &&
             type is not ProfileChanged.Type.RemovedCondition &&
