@@ -14,11 +14,11 @@ using Dalamud.Interface.Utility;
 using OtterGui;
 using OtterGui.Log;
 using OtterGui.Raii;
+using OtterGui.Text;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-using System.Windows.Forms;
 
 namespace CustomizePlus.UI.Windows.MainWindow.Tabs.Templates;
 
@@ -454,13 +454,13 @@ public class BoneEditorPanel
                                     }
                                 }
 
-                                if (ImGui.MenuItem("Import Group"))
-                                {
-                                    var clipboardText = Clipboard.GetText();
-                                    if (!string.IsNullOrEmpty(clipboardText))
-                                        _pendingImportText = clipboardText;
-                                }
+                            if (ImGui.MenuItem("Import Group"))
+                            {
+                                var clipboardText = ImUtf8.GetClipboardText();
+                                if (!string.IsNullOrEmpty(clipboardText))
+                                    _pendingImportText = clipboardText;
                             }
+                        }
 
                             ImGui.EndPopup();
                         }
@@ -486,7 +486,7 @@ public class BoneEditorPanel
         {
             try
             {
-                Clipboard.SetText(_pendingClipboardText);
+                ImUtf8.SetClipboardText(_pendingClipboardText);
                 _logger.Debug("copied to clipboard: " + _pendingClipboardText);
             }
             catch (Exception ex)

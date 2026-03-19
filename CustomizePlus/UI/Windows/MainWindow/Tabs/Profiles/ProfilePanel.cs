@@ -1,5 +1,6 @@
 using CustomizePlus.Configuration.Data;
 using CustomizePlus.Core.Data;
+using CustomizePlus.Core.Helpers;
 using CustomizePlus.Core.Services;
 using CustomizePlus.Game.Helpers;
 using CustomizePlus.Game.Services;
@@ -20,7 +21,9 @@ using Dalamud.Interface.Utility;
 using Dalamud.Plugin.Services;
 using OtterGui;
 using OtterGui.Extensions;
+using OtterGui.Log;
 using OtterGui.Raii;
+using OtterGui.Text;
 using Penumbra.GameData.Actors;
 using Penumbra.GameData.Enums;
 using System;
@@ -28,6 +31,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using static FFXIVClientStructs.FFXIV.Client.LayoutEngine.ILayoutInstance;
+using CustomizePlus.Core.Extensions;
 
 namespace CustomizePlus.UI.Windows.MainWindow.Tabs.Profiles;
 
@@ -38,15 +42,17 @@ public class ProfilePanel
     private readonly PluginConfiguration _configuration;
     private readonly TemplateCombo _templateCombo;
     private readonly TemplateEditorManager _templateEditorManager;
-    private readonly ActorAssignmentUi _actorAssignmentUi;
-    private readonly ActorManager _actorManager;
-    private readonly TemplateEditorEvent _templateEditorEvent;
     private readonly GearDataService _gearDataService;
     private readonly EmoteService _emoteService;
     private readonly GearSlotIconService _gearSlotIconService;
     private readonly ITextureProvider _textureProvider;
     private readonly PenumbraIpcHandler _penumbraIpc;
     private readonly ModService _modService;
+    private readonly PopupSystem _popupSystem;
+    private readonly Logger _logger;
+    private readonly ActorAssignmentUi _actorAssignmentUi;
+    private readonly ActorManager _actorManager;
+    private readonly TemplateEditorEvent _templateEditorEvent;
 
     private string? _newName;
     private int? _newPriority;
@@ -66,30 +72,34 @@ public class ProfilePanel
         PluginConfiguration configuration,
         TemplateCombo templateCombo,
         TemplateEditorManager templateEditorManager,
-        ActorAssignmentUi actorAssignmentUi,
-        ActorManager actorManager,
-        TemplateEditorEvent templateEditorEvent,
         GearDataService gearDataService,
         EmoteService emoteService,
         GearSlotIconService gearSlotIconService,
         ITextureProvider textureProvider,
         PenumbraIpcHandler penumbraIpc,
-        ModService modService)
+        ModService modService,
+        PopupSystem popupSystem,
+        Logger logger,
+        ActorAssignmentUi actorAssignmentUi,
+        ActorManager actorManager,
+        TemplateEditorEvent templateEditorEvent)
     {
         _selector = selector;
         _manager = manager;
         _configuration = configuration;
         _templateCombo = templateCombo;
         _templateEditorManager = templateEditorManager;
-        _actorAssignmentUi = actorAssignmentUi;
-        _actorManager = actorManager;
-        _templateEditorEvent = templateEditorEvent;
         _gearDataService = gearDataService;
         _emoteService = emoteService;
         _gearSlotIconService = gearSlotIconService;
         _textureProvider = textureProvider;
         _penumbraIpc = penumbraIpc;
         _modService = modService;
+        _popupSystem = popupSystem;
+        _logger = logger;
+        _actorAssignmentUi = actorAssignmentUi;
+        _actorManager = actorManager;
+        _templateEditorEvent = templateEditorEvent;
     }
 
     public void Draw()
@@ -123,9 +133,20 @@ public class ProfilePanel
                     OnClick = () => _manager.SetWriteProtection(_selector.Selected!, true)
                 };
 
+    private HeaderDrawer.Button ExportToClipboardButton()
+         => _selector.Selected == null
+        ? HeaderDrawer.Button.Invisible
+        :new HeaderDrawer.Button {
+            Description = "Copy the current profile combined into one template to your clipboard.",
+            Icon = FontAwesomeIcon.Copy,
+            OnClick = ExportToClipboard,
+            Visible = _selector.Selected != null,
+            Disabled = false
+        };
+
     private void DrawHeader()
         => HeaderDrawer.Draw(SelectionName, 0, ImGui.GetColorU32(ImGuiCol.FrameBg),
-            0, LockButton(),
+            1, ExportToClipboardButton(), LockButton(),
             HeaderDrawer.Button.IncognitoButton(_selector.IncognitoMode, v => _selector.IncognitoMode = v));
 
     private static Vector4 GetConditionBaseColor(ConditionType type)
@@ -362,6 +383,20 @@ public class ProfilePanel
                 ImGuiComponents.HelpMarker("Profiles with a higher number here take precedence before profiles with a lower number.\n" +
                     "That means if two or more profiles affect same character, profile with higher priority will be applied to that character.");
             }
+        }
+    }
+
+     private void ExportToClipboard()
+    {
+        try
+        {
+            ImUtf8.SetClipboardText(Base64Helper.ExportProfileToBase64(_selector.Selected!));
+            _popupSystem.ShowPopup(PopupSystem.Messages.ClipboardDataNotLongTerm);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Could not copy data from profile {_selector.Selected!.UniqueId} to clipboard: {ex}");
+            _popupSystem.ShowPopup(PopupSystem.Messages.ActionError);
         }
     }
 

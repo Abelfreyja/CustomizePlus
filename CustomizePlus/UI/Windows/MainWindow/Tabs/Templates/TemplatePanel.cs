@@ -3,11 +3,10 @@ using Dalamud.Bindings.ImGui;
 using OtterGui;
 using OtterGui.Classes;
 using OtterGui.Raii;
+using OtterGui.Text;
 using System;
 using System.Linq;
 using System.Numerics;
-using System.Windows.Forms;
-using CustomizePlus.Core.Data;
 using CustomizePlus.Templates;
 using CustomizePlus.Configuration.Data;
 using CustomizePlus.Core.Helpers;
@@ -230,7 +229,7 @@ public class TemplatePanel : IDisposable
     {
         try
         {
-            Clipboard.SetText(Base64Helper.ExportTemplateToBase64(_selector.Selected!));
+            ImUtf8.SetClipboardText(Base64Helper.ExportTemplateToBase64(_selector.Selected!));
             _popupSystem.ShowPopup(PopupSystem.Messages.ClipboardDataNotLongTerm);
         }
         catch (Exception ex)
