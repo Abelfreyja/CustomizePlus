@@ -78,14 +78,14 @@ public class BoneTransform
     internal void OnDeserialized(StreamingContext context)
     {
         //Sanitize all values on deserialization
-        _translation = ClampToDefaultLimits(_translation);
+        _translation = ClampVector(_translation);
         _rotation = ClampAngles(_rotation);
-        _scaling = ClampToDefaultLimits(_scaling);
+        _scaling = ClampVector(_scaling);
 
         if (_childScaling == Vector3.Zero && !ChildScalingIndependent)
             _childScaling = Vector3.One;
         else
-            _childScaling = ClampToDefaultLimits(_childScaling);
+            _childScaling = ClampVector(_childScaling);
     }
 
     //"considerPropagationAsEdit" only should be true if you know what you are doing
@@ -146,6 +146,29 @@ public class BoneTransform
         }
     }
 
+    public Vector3 GetValueForAttribute(BoneAttribute attribute)
+    {
+        return attribute switch
+        {
+            BoneAttribute.Position => Translation,
+            BoneAttribute.Rotation => Rotation,
+            BoneAttribute.Scale => Scaling,
+            BoneAttribute.ChildScaling => ChildScaling,
+            _ => Vector3.Zero
+        };
+    }
+
+    public bool IsPropagationEnabledForAttribute(BoneAttribute attribute)
+    {
+        return attribute switch
+        {
+            BoneAttribute.Position => PropagateTranslation,
+            BoneAttribute.Rotation => PropagateRotation,
+            BoneAttribute.Scale => PropagateScale,
+            _ => false
+        };
+    }
+
     public void UpdateToMatch(BoneTransform newValues)
     {
         Translation = newValues.Translation;
@@ -197,37 +220,40 @@ public class BoneTransform
     }
 
     /// <summary>
-    /// Sanitize all vectors inside of this container.
+    /// Sanitize all vectors inside of this container. (this has no use currently ?)
     /// </summary>
-    private void Sanitize()
-    {
-        _translation = ClampVector(_translation);
-        _rotation = ClampAngles(_rotation);
-        _scaling = ClampVector(_scaling);
-        _childScaling = _childScaling == Vector3.Zero ? Vector3.One : ClampVector(_childScaling);
-    }
+    //private void Sanitize()
+    //{
+    //    _translation = ClampVector(_translation);
+    //    _rotation = ClampAngles(_rotation);
+    //    _scaling = ClampVector(_scaling);
+    //    _childScaling = _childScaling == Vector3.Zero ? Vector3.One : ClampVector(_childScaling);
+    //}
 
     /// <summary>
     /// Clamp all vector values to be within allowed limits.
     /// </summary>
-    private Vector3 ClampVector(Vector3 vector)
+    private static Vector3 ClampVector(Vector3 vector)
     {
-        return new Vector3
-        {
-            X = Math.Clamp(vector.X, Constants.MinVectorValueLimit, Constants.MaxVectorValueLimit),
-            Y = Math.Clamp(vector.Y, Constants.MinVectorValueLimit, Constants.MaxVectorValueLimit),
-            Z = Math.Clamp(vector.Z, Constants.MinVectorValueLimit, Constants.MaxVectorValueLimit)
-        };
+        vector.X = Math.Clamp(vector.X, Constants.MinVectorValueLimit, Constants.MaxVectorValueLimit);
+        vector.Y = Math.Clamp(vector.Y, Constants.MinVectorValueLimit, Constants.MaxVectorValueLimit);
+        vector.Z = Math.Clamp(vector.Z, Constants.MinVectorValueLimit, Constants.MaxVectorValueLimit);
+
+        return vector;
     }
 
     private static Vector3 ClampAngles(Vector3 rotVec)
     {
         static float Clamp(float angle)
         {
-            if (angle > 180)
-                angle -= 360;
-            else if (angle < -180)
-                angle += 360;
+            if (float.IsNaN(angle) || float.IsInfinity(angle))
+                return 0f;
+
+            angle %= 360f;
+            if (angle > 180f)
+                angle -= 360f;
+            else if (angle < -180f)
+                angle += 360f;
 
             return angle;
         }
@@ -292,15 +318,4 @@ public class BoneTransform
         return tr;
     }
 
-    /// <summary>
-    ///     Clamp all vector values to be within allowed limits.
-    /// </summary>
-    private static Vector3 ClampToDefaultLimits(Vector3 vector)
-    {
-        vector.X = Math.Clamp(vector.X, Constants.MinVectorValueLimit, Constants.MaxVectorValueLimit);
-        vector.Y = Math.Clamp(vector.Y, Constants.MinVectorValueLimit, Constants.MaxVectorValueLimit);
-        vector.Z = Math.Clamp(vector.Z, Constants.MinVectorValueLimit, Constants.MaxVectorValueLimit);
-
-        return vector;
-    }
 }

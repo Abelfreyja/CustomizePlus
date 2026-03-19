@@ -19,8 +19,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using System.Windows.Forms;
-using static CustomizePlus.Core.Data.BoneData;
-using static FFXIVClientStructs.FFXIV.Client.UI.Misc.MinionListModule.Delegates;
 
 namespace CustomizePlus.UI.Windows.MainWindow.Tabs.Templates;
 
@@ -28,17 +26,19 @@ public class BoneEditorPanel
 {
     private readonly TemplateFileSystemSelector _templateFileSystemSelector;
     private readonly TemplateEditorManager _editorManager;
+    private readonly TemplateEditorService _editorService;
     private readonly PluginConfiguration _configuration;
     private readonly GameObjectService _gameObjectService;
     private readonly ActorAssignmentUi _actorAssignmentUi;
     private readonly PopupSystem _popupSystem;
     private readonly Logger _logger;
 
-    private BoneAttribute _editingAttribute;
+    private BoneAttribute _editingAttribute => _editorService.ActiveAttribute;
     private int _precision;
 
     private bool _isShowLiveBones;
-    private bool _isMirrorModeEnabled;
+    private bool _isMirrorModeEnabled => _editorService.MirrorMode;
+    private bool _isGizmoEnabled => _editorService.GizmoEnabled;
 
     private Dictionary<BoneData.BoneFamily, bool> _groupExpandedState = new();
 
@@ -47,23 +47,22 @@ public class BoneEditorPanel
     private bool _isUnlocked = false;
 
     private string _boneSearch = string.Empty;
+    private bool _boneEditorSliderActive;
 
     private readonly HashSet<string> _propagationHighlights = new(StringComparer.Ordinal);
     private readonly HashSet<string> _propagationSources = new(StringComparer.Ordinal);
 
-    // all the stuff to handle undo/redo
-    private readonly Stack<Dictionary<string, BoneTransform>> _undoStack = new();
-    private readonly Stack<Dictionary<string, BoneTransform>> _redoStack = new();
-    private Dictionary<string, BoneTransform>? _pendingUndoSnapshot = null;
-    private float _initialX, _initialY, _initialZ;
-    private Vector3 _initialScale;
-    private float _initialChildX, _initialChildY, _initialChildZ;
-    private Vector3 _initialChildScale;
     private float _propagateButtonXPos = 0;
     private float _parentRowScreenPosY = 0;
 
-    // favorite bone stuff
-    private HashSet<string> _favoriteBones;
+    private static readonly Vector4 AttributeButtonActiveColor = new(0.28f, 0.5f, 0.8f, 0.7f);
+    private static readonly Vector4 AttributeButtonHoverColor = new(0.35f, 0.6f, 0.9f, 0.85f);
+    private static readonly Vector4 AttributeButtonPressedColor = new(0.22f, 0.45f, 0.75f, 0.85f);
+    private static readonly Vector4 ToggleButtonActiveColor = new(0.25f, 0.65f, 0.4f, 0.65f);
+    private static readonly Vector4 ToggleButtonHoverColor = new(0.3f, 0.75f, 0.45f, 0.8f);
+    private static readonly Vector4 ToggleButtonPressedColor = new(0.2f, 0.6f, 0.35f, 0.8f);
+
+    private IReadOnlySet<string> _favoriteBones => _editorService.FavoriteBones;
 
     private string? _pendingClipboardText;
     private string? _pendingImportText;
@@ -75,6 +74,7 @@ public class BoneEditorPanel
     public BoneEditorPanel(
         TemplateFileSystemSelector templateFileSystemSelector,
         TemplateEditorManager editorManager,
+        TemplateEditorService editorService,
         PluginConfiguration configuration,
         GameObjectService gameObjectService,
         ActorAssignmentUi actorAssignmentUi,
@@ -82,16 +82,14 @@ public class BoneEditorPanel
     {
         _templateFileSystemSelector = templateFileSystemSelector;
         _editorManager = editorManager;
+        _editorService = editorService;
         _configuration = configuration;
         _gameObjectService = gameObjectService;
         _actorAssignmentUi = actorAssignmentUi;
         _logger = logger;
 
         _isShowLiveBones = configuration.EditorConfiguration.ShowLiveBones;
-        _isMirrorModeEnabled = configuration.EditorConfiguration.BoneMirroringEnabled;
         _precision = configuration.EditorConfiguration.EditorValuesPrecision;
-        _editingAttribute = configuration.EditorConfiguration.EditorMode;
-        _favoriteBones = new HashSet<string>(_configuration.EditorConfiguration.FavoriteBones);
     }
 
     public bool EnableEditor(Template template)
@@ -99,8 +97,6 @@ public class BoneEditorPanel
         if (_editorManager.EnableEditor(template))
         {
             //_editorManager.SetLimitLookupToOwned(_configuration.EditorConfiguration.LimitLookupToOwnedObjects);
-            _undoStack.Clear();
-            _redoStack.Clear();
             return true;
         }
 
@@ -123,6 +119,7 @@ public class BoneEditorPanel
     public void Draw()
     {
         _isUnlocked = IsCharacterFound && IsEditorActive && !IsEditorPaused;
+        _boneEditorSliderActive = false;
 
         DrawEditorConfirmationPopup();
 
@@ -158,7 +155,7 @@ public class BoneEditorPanel
                         ImGui.SameLine();
                         _actorAssignmentUi.DrawPlayerInput(width.X / 2);
 
-                        var buttonWidth = new Vector2(165 * ImGuiHelpers.GlobalScale - ImGui.GetStyle().ItemSpacing.X / 2, 0);
+                        var buttonWidth = new Vector2((165 * ImGuiHelpers.GlobalScale) - (ImGui.GetStyle().ItemSpacing.X / 2), 0);
 
                         if (ImGuiUtil.DrawDisabledButton("Apply to player character", buttonWidth, string.Empty, !_actorAssignmentUi.CanSetPlayer))
                             _editorManager.ChangeEditorCharacter(_actorAssignmentUi.PlayerIdentifier);
@@ -201,86 +198,64 @@ public class BoneEditorPanel
                 ImGui.TableNextRow();
                 ImGui.TableNextColumn();
 
-                var modeChanged = false;
-                if (ImGui.RadioButton("Position", _editingAttribute == BoneAttribute.Position))
-                {
-                    _editingAttribute = BoneAttribute.Position;
-                    modeChanged = true;
-                }
-                CtrlHelper.AddHoverText($"May have unintended effects. Edit at your own risk!");
+                if (DrawAttributeButton(BoneAttribute.Position, FontAwesomeIcon.ArrowsAlt, "Position",
+                        "May have unintended effects. Edit at your own risk!"))
+                    ApplyEditorAttribute(BoneAttribute.Position);
 
                 ImGui.SameLine();
-                if (ImGui.RadioButton("Rotation", _editingAttribute == BoneAttribute.Rotation))
-                {
-                    _editingAttribute = BoneAttribute.Rotation;
-                    modeChanged = true;
-                }
-                CtrlHelper.AddHoverText($"May have unintended effects. Edit at your own risk!");
+                if (DrawAttributeButton(BoneAttribute.Rotation, FontAwesomeIcon.Sync, "Rotation",
+                        "May have unintended effects. Edit at your own risk!"))
+                    ApplyEditorAttribute(BoneAttribute.Rotation);
 
                 ImGui.SameLine();
-                if (ImGui.RadioButton("Scale", _editingAttribute == BoneAttribute.Scale))
-                {
-                    _editingAttribute = BoneAttribute.Scale;
-                    modeChanged = true;
-                }
+                if (DrawAttributeButton(BoneAttribute.Scale, FontAwesomeIcon.CompressArrowsAlt, "Scale"))
+                    ApplyEditorAttribute(BoneAttribute.Scale);
 
                 ImGui.SameLine();
                 ImGui.SetNextItemWidth(200 * ImGuiHelpers.GlobalScale);
                 ImGui.InputTextWithHint("##BoneSearch", "Search bones...", ref _boneSearch, 64);
 
                 ImGui.SameLine();
-                ImGui.BeginDisabled(_undoStack.Count == 0);
+                ImGui.BeginDisabled(!_editorService.CanUndo);
                 if (ImGuiComponents.IconButton("##UndoBone", FontAwesomeIcon.Undo))
                 {
-                    var state = _undoStack.Pop();
-                    _redoStack.Push(_editorManager.EditorProfile.Armatures[0]
-                        .GetAllBones()
-                        .DistinctBy(b => b.BoneName)
-                        .ToDictionary(b => b.BoneName, b => new BoneTransform(b.CustomizedTransform ?? new BoneTransform())));
-                    RestoreState(state);
+                    _editorService.Undo();
                 }
                 ImGui.EndDisabled();
                 CtrlHelper.AddHoverText("Undo");
 
                 ImGui.SameLine();
-                ImGui.BeginDisabled(_redoStack.Count == 0);
+                ImGui.BeginDisabled(!_editorService.CanRedo);
                 if (ImGuiComponents.IconButton("##RedoBone", FontAwesomeIcon.Redo))
                 {
-                    var state = _redoStack.Pop();
-                    _undoStack.Push(_editorManager.EditorProfile.Armatures[0]
-                        .GetAllBones()
-                        .DistinctBy(b => b.BoneName)
-                        .ToDictionary(b => b.BoneName, b => new BoneTransform(b.CustomizedTransform ?? new BoneTransform())));
-                    RestoreState(state);
+                    _editorService.Redo();
                 }
                 ImGui.EndDisabled();
                 CtrlHelper.AddHoverText("Redo");
 
-                if (modeChanged)
-                {
-                    _configuration.EditorConfiguration.EditorMode = _editingAttribute;
-                    _configuration.Save();
-                }
-
                 using (var disabled = ImRaii.Disabled(!_isUnlocked))
                 {
                     ImGui.SameLine();
-                    if (CtrlHelper.Checkbox("Show Live Bones", ref _isShowLiveBones))
+                    if (DrawToggleButton("ShowLiveBones", FontAwesomeIcon.Eye, _isShowLiveBones, "Show Live Bones",
+                            "If selected, present for editing all bones found in the game data, else show only bones for which the profile already contains edits."))
                     {
+                        _isShowLiveBones = !_isShowLiveBones;
                         _configuration.EditorConfiguration.ShowLiveBones = _isShowLiveBones;
                         _configuration.Save();
                     }
-                    CtrlHelper.AddHoverText($"If selected, present for editing all bones found in the game data,\nelse show only bones for which the profile already contains edits.");
 
                     ImGui.SameLine();
-                    ImGui.BeginDisabled(!_isShowLiveBones);
-                    if (CtrlHelper.Checkbox("Mirror Mode", ref _isMirrorModeEnabled))
+                    using (var mirrorDisabled = ImRaii.Disabled(!_isShowLiveBones))
                     {
-                        _configuration.EditorConfiguration.BoneMirroringEnabled = _isMirrorModeEnabled;
-                        _configuration.Save();
+                        if (DrawToggleButton("MirrorMode", FontAwesomeIcon.GripLinesVertical, _isMirrorModeEnabled, "Mirror Mode",
+                                "Bone changes will be reflected from left to right and vice versa"))
+                            ApplyMirrorMode(!_isMirrorModeEnabled);
                     }
-                    CtrlHelper.AddHoverText($"Bone changes will be reflected from left to right and vice versa");
-                    ImGui.EndDisabled();
+
+                    ImGui.SameLine();
+                    if (DrawToggleButton("GizmoEnabled", FontAwesomeIcon.Crosshairs, _isGizmoEnabled, "Gizmo",
+                            "Toggle the gizmo overlay and interaction."))
+                        ApplyGizmoEnabled(!_isGizmoEnabled);
                 }
 
                 ImGui.TableNextColumn();
@@ -297,213 +272,215 @@ public class BoneEditorPanel
 
             using (var table = ImRaii.Table($"BoneEditorContents", 6, ImGuiTableFlags.BordersOuterH | ImGuiTableFlags.BordersV | ImGuiTableFlags.ScrollY))
             {
-                if (!table)
-                    return;
-
-                var col1Label = _editingAttribute == BoneAttribute.Rotation ? "Roll" : "X";
-                var col2Label = _editingAttribute == BoneAttribute.Rotation ? "Pitch" : "Y";
-                var col3Label = _editingAttribute == BoneAttribute.Rotation ? "Yaw" : "Z";
-                var col4Label = _editingAttribute == BoneAttribute.Scale ? "All" : "N/A";
-
-                ImGui.TableSetupColumn("Bones", ImGuiTableColumnFlags.NoReorder | ImGuiTableColumnFlags.WidthFixed, 6 * CtrlHelper.IconButtonWidth);
-
-                ImGui.TableSetupColumn($"{col1Label}", ImGuiTableColumnFlags.NoReorder | ImGuiTableColumnFlags.WidthStretch);
-                ImGui.TableSetupColumn($"{col2Label}", ImGuiTableColumnFlags.NoReorder | ImGuiTableColumnFlags.WidthStretch);
-                ImGui.TableSetupColumn($"{col3Label}", ImGuiTableColumnFlags.NoReorder | ImGuiTableColumnFlags.WidthStretch);
-                ImGui.TableSetupColumn($"{col4Label}", ImGuiTableColumnFlags.NoReorder | ImGuiTableColumnFlags.WidthStretch);
-                ImGui.TableSetColumnEnabled(4, _editingAttribute == BoneAttribute.Scale);
-
-                ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.NoReorder | ImGuiTableColumnFlags.WidthStretch);
-
-                ImGui.TableHeadersRow();
-
-                IEnumerable<EditRowParams> relevantModelBones = null!;
-                if (_editorManager.IsEditorActive && _editorManager.EditorProfile != null && _editorManager.EditorProfile.Armatures.Count > 0)
-                    relevantModelBones = _isShowLiveBones && _editorManager.EditorProfile.Armatures.Count > 0
-                        ? _editorManager.EditorProfile.Armatures[0].GetAllBones().DistinctBy(x => x.BoneName).Select(x => new EditRowParams(x))
-                        : _editorManager.EditorProfile.Armatures[0].BoneTemplateBinding.Where(x => x.Value.Bones.ContainsKey(x.Key))
-                            .Select(x => new EditRowParams(x.Key, x.Value.Bones[x.Key])); //todo: this is awful
-                else
-                    relevantModelBones = _templateFileSystemSelector.Selected!.Bones.Select(x => new EditRowParams(x.Key, x.Value));
-
-                if (!string.IsNullOrEmpty(_boneSearch))
+                if (table)
                 {
-                    relevantModelBones = relevantModelBones
-                        .Where(x => x.BoneDisplayName.Contains(_boneSearch, StringComparison.OrdinalIgnoreCase)
-                                 || x.BoneCodeName.Contains(_boneSearch, StringComparison.OrdinalIgnoreCase));
-                }
+                    var col1Label = _editingAttribute == BoneAttribute.Rotation ? "Roll" : "X";
+                    var col2Label = _editingAttribute == BoneAttribute.Rotation ? "Pitch" : "Y";
+                    var col3Label = _editingAttribute == BoneAttribute.Rotation ? "Yaw" : "Z";
+                    var col4Label = _editingAttribute == BoneAttribute.Scale ? "All" : "N/A";
 
-                var favoriteRows = relevantModelBones
-                    .Where(b => _favoriteBones.Contains(b.BoneCodeName))
-                    .OrderBy(b => BoneData.GetBoneRanking(b.BoneCodeName))
-                    .ToList();
+                    ImGui.TableSetupColumn("Bones", ImGuiTableColumnFlags.NoReorder | ImGuiTableColumnFlags.WidthFixed, 6 * CtrlHelper.IconButtonWidth);
 
-                var nonFavoriteRows = relevantModelBones
-                    .Where(b => !_favoriteBones.Contains(b.BoneCodeName))
-                    .ToList();
+                    ImGui.TableSetupColumn($"{col1Label}", ImGuiTableColumnFlags.NoReorder | ImGuiTableColumnFlags.WidthStretch);
+                    ImGui.TableSetupColumn($"{col2Label}", ImGuiTableColumnFlags.NoReorder | ImGuiTableColumnFlags.WidthStretch);
+                    ImGui.TableSetupColumn($"{col3Label}", ImGuiTableColumnFlags.NoReorder | ImGuiTableColumnFlags.WidthStretch);
+                    ImGui.TableSetupColumn($"{col4Label}", ImGuiTableColumnFlags.NoReorder | ImGuiTableColumnFlags.WidthStretch);
+                    ImGui.TableSetColumnEnabled(4, _editingAttribute == BoneAttribute.Scale);
 
-                UpdatePropagationHighlights(favoriteRows.Concat(nonFavoriteRows));
+                    ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.NoReorder | ImGuiTableColumnFlags.WidthStretch);
 
-                var groupedBones = nonFavoriteRows
-                    .GroupBy(x => BoneData.GetBoneFamily(x.BoneCodeName));
+                    ImGui.TableHeadersRow();
 
-                if (favoriteRows.Count > 0)
-                {
-                    const string favoritesHeaderId = "FavoritesHeader";
-
-                    if (!_groupExpandedState.TryGetValue((BoneData.BoneFamily)(-1), out var expanded))
-                        _groupExpandedState[(BoneData.BoneFamily)(-1)] = expanded = true;
-
-                    if (expanded)
-                        ImGui.TableNextRow(ImGuiTableRowFlags.Headers);
+                    IEnumerable<EditRowParams> relevantModelBones = null!;
+                    if (_editorManager.IsEditorActive && _editorManager.EditorProfile != null && _editorManager.EditorProfile.Armatures.Count > 0)
+                        relevantModelBones = _isShowLiveBones && _editorManager.EditorProfile.Armatures.Count > 0
+                            ? _editorManager.EditorProfile.Armatures[0].GetAllBones().DistinctBy(x => x.BoneName).Select(x => new EditRowParams(x))
+                            : _editorManager.EditorProfile.Armatures[0].BoneTemplateBinding.Where(x => x.Value.Bones.ContainsKey(x.Key))
+                                .Select(x => new EditRowParams(x.Key, x.Value.Bones[x.Key])); //todo: this is awful
                     else
-                        ImGui.TableNextRow();
+                        relevantModelBones = _templateFileSystemSelector.Selected!.Bones.Select(x => new EditRowParams(x.Key, x.Value));
 
-                    using var id = ImRaii.PushId(favoritesHeaderId);
-                    ImGui.TableNextColumn();
-                    CtrlHelper.ArrowToggle($"##{favoritesHeaderId}", ref expanded);
-                    ImGui.SameLine();
-                    CtrlHelper.StaticLabel("Favorites");
-
-                    if (expanded)
+                    if (!string.IsNullOrEmpty(_boneSearch))
                     {
-                        ImGui.TableNextRow();
-                        foreach (var erp in favoriteRows)
-                        {
-                            var family = BoneData.GetBoneFamily(erp.BoneCodeName);
-                            CompleteBoneEditor(family, erp);
-                        }
+                        relevantModelBones = relevantModelBones
+                            .Where(x => x.BoneDisplayName.Contains(_boneSearch, StringComparison.OrdinalIgnoreCase)
+                                     || x.BoneCodeName.Contains(_boneSearch, StringComparison.OrdinalIgnoreCase));
                     }
 
-                    _groupExpandedState[(BoneData.BoneFamily)(-1)] = expanded;
-                }
+                    var favoriteRows = relevantModelBones
+                        .Where(b => _favoriteBones.Contains(b.BoneCodeName))
+                        .OrderBy(b => BoneData.GetBoneRanking(b.BoneCodeName))
+                        .ToList();
 
-                foreach (var boneGroup in groupedBones.OrderBy(x => (int)x.Key))
-                {
-                    if (!string.IsNullOrEmpty(_pendingImportText))
+                    var nonFavoriteRows = relevantModelBones
+                        .Where(b => !_favoriteBones.Contains(b.BoneCodeName))
+                        .ToList();
+
+                    UpdatePropagationHighlights(favoriteRows.Concat(nonFavoriteRows));
+
+                    var groupedBones = nonFavoriteRows
+                        .GroupBy(x => BoneData.GetBoneFamily(x.BoneCodeName));
+
+                    if (favoriteRows.Count > 0)
                     {
-                        _logger.Debug("check import text 1: " + (_pendingImportText));
-                        try
+                        const string favoritesHeaderId = "FavoritesHeader";
+
+                        if (!_groupExpandedState.TryGetValue((BoneData.BoneFamily)(-1), out var expanded))
+                            _groupExpandedState[(BoneData.BoneFamily)(-1)] = expanded = true;
+
+                        if (expanded)
+                            ImGui.TableNextRow(ImGuiTableRowFlags.Headers);
+                        else
+                            ImGui.TableNextRow();
+
+                        using var id = ImRaii.PushId(favoritesHeaderId);
+                        ImGui.TableNextColumn();
+                        CtrlHelper.ArrowToggle($"##{favoritesHeaderId}", ref expanded);
+                        ImGui.SameLine();
+                        CtrlHelper.StaticLabel("Favorites");
+
+                        if (expanded)
                         {
-                            var importedBones = Base64Helper.ImportEditedBonesFromBase64(_pendingImportText);
-                            if (importedBones != null)
+                            ImGui.TableNextRow();
+                            foreach (var erp in favoriteRows)
                             {
-                                foreach (var boneData in importedBones)
-                                {
-                                    _editorManager.ModifyBoneTransform(
-                                        boneData.BoneCodeName,
-                                        new BoneTransform
-                                        {
-                                            Translation = boneData.Translation,
-                                            Rotation = boneData.Rotation,
-                                            Scaling = boneData.Scaling,
-                                            ChildScaling = boneData.ChildScaling,
-                                            ChildScalingIndependent = boneData.ChildScalingIndependent,
-                                            PropagateTranslation = boneData.PropagateTranslation,
-                                            PropagateRotation = boneData.PropagateRotation,
-                                            PropagateScale = boneData.PropagateScale
-                                        }
-                                    );
-                                }
+                                var family = BoneData.GetBoneFamily(erp.BoneCodeName);
+                                CompleteBoneEditor(family, erp);
                             }
                         }
-                        catch {  }
-                        finally
+
+                        _groupExpandedState[(BoneData.BoneFamily)(-1)] = expanded;
+                    }
+
+                    foreach (var boneGroup in groupedBones.OrderBy(x => (int)x.Key))
+                    {
+                        if (!string.IsNullOrEmpty(_pendingImportText))
                         {
-                            _pendingImportText = null;
-                        }
-                    }
-
-                    //Hide root bone if it's not enabled in settings or if we are in rotation mode
-                    if (boneGroup.Key == BoneData.BoneFamily.Root &&
-                        (!_configuration.EditorConfiguration.RootPositionEditingEnabled ||
-                            _editingAttribute == BoneAttribute.Rotation))
-                        continue;
-
-                    //create a dropdown entry for the family if one doesn't already exist
-                    //mind that it'll only be rendered if bones exist to fill it
-                    if (!_groupExpandedState.TryGetValue(boneGroup.Key, out var expanded))
-                    {
-                        _groupExpandedState[boneGroup.Key] = false;
-                        expanded = false;
-                    }
-
-                    if (expanded)
-                    {
-                        //paint the row in header colors if it's expanded
-                        ImGui.TableNextRow(ImGuiTableRowFlags.Headers);
-                    }
-                    else
-                    {
-                        ImGui.TableNextRow();
-                    }
-
-                    using var id = ImRaii.PushId(boneGroup.Key.ToString());
-                    ImGui.TableNextColumn();
-
-                    CtrlHelper.ArrowToggle($"##{boneGroup.Key}", ref expanded);
-                    ImGui.SameLine();
-                    CtrlHelper.StaticLabel(boneGroup.Key.ToString());
-                    if (BoneData.DisplayableFamilies.TryGetValue(boneGroup.Key, out var tip) && tip != null)
-                        CtrlHelper.AddHoverText(tip);
-
-                    // sigma
-                    var rowMin = ImGui.GetItemRectMin();
-                    var rowMax = new Vector2(ImGui.GetContentRegionAvail().X + rowMin.X, ImGui.GetItemRectMax().Y);
-
-                    if (ImGui.IsMouseHoveringRect(rowMin, rowMax) && ImGui.IsMouseClicked(ImGuiMouseButton.Right))
-                    {
-                        ImGui.OpenPopup($"GroupContext##{boneGroup.Key}");
-                    }
-
-                    if (ImGui.BeginPopup($"GroupContext##{boneGroup.Key}"))
-                    {
-                        using (var disabled = ImRaii.Disabled(!_isUnlocked))
-                        {
-                            if (ImGui.MenuItem("Copy Group"))
+                            _logger.Debug("check import text 1: " + (_pendingImportText));
+                            try
                             {
-                                try
+                                var importedBones = Base64Helper.ImportEditedBonesFromBase64(_pendingImportText);
+                                if (importedBones != null)
                                 {
-                                    var editedBones = boneGroup
-                                        .Where(b => b.Transform != null && b.Transform.IsEdited())
-                                        .Select(b => (b.BoneCodeName, b.Transform))
-                                        .ToList();
-
-                                    if (editedBones.Count > 0)
+                                    foreach (var boneData in importedBones)
                                     {
-                                        _pendingClipboardText = Base64Helper.ExportEditedBonesToBase64(editedBones);
+                                        _editorManager.ModifyBoneTransform(
+                                            boneData.BoneCodeName,
+                                            new BoneTransform
+                                            {
+                                                Translation = boneData.Translation,
+                                                Rotation = boneData.Rotation,
+                                                Scaling = boneData.Scaling,
+                                                ChildScaling = boneData.ChildScaling,
+                                                ChildScalingIndependent = boneData.ChildScalingIndependent,
+                                                PropagateTranslation = boneData.PropagateTranslation,
+                                                PropagateRotation = boneData.PropagateRotation,
+                                                PropagateScale = boneData.PropagateScale
+                                            }
+                                        );
                                     }
                                 }
-                                catch (Exception ex)
+                            }
+                            catch {  }
+                            finally
+                            {
+                                _pendingImportText = null;
+                            }
+                        }
+
+                        //Hide root bone if it's not enabled in settings or if we are in rotation mode
+                        if (boneGroup.Key == BoneData.BoneFamily.Root &&
+                            (!_configuration.EditorConfiguration.RootPositionEditingEnabled ||
+                                _editingAttribute == BoneAttribute.Rotation))
+                            continue;
+
+                        //create a dropdown entry for the family if one doesn't already exist
+                        //mind that it'll only be rendered if bones exist to fill it
+                        if (!_groupExpandedState.TryGetValue(boneGroup.Key, out var expanded))
+                        {
+                            _groupExpandedState[boneGroup.Key] = false;
+                            expanded = false;
+                        }
+
+                        if (expanded)
+                        {
+                            //paint the row in header colors if it's expanded
+                            ImGui.TableNextRow(ImGuiTableRowFlags.Headers);
+                        }
+                        else
+                        {
+                            ImGui.TableNextRow();
+                        }
+
+                        using var id = ImRaii.PushId(boneGroup.Key.ToString());
+                        ImGui.TableNextColumn();
+
+                        CtrlHelper.ArrowToggle($"##{boneGroup.Key}", ref expanded);
+                        ImGui.SameLine();
+                        CtrlHelper.StaticLabel(boneGroup.Key.ToString());
+                        if (BoneData.DisplayableFamilies.TryGetValue(boneGroup.Key, out var tip) && tip != null)
+                            CtrlHelper.AddHoverText(tip);
+
+                        // sigma
+                        var rowMin = ImGui.GetItemRectMin();
+                        var rowMax = new Vector2(ImGui.GetContentRegionAvail().X + rowMin.X, ImGui.GetItemRectMax().Y);
+
+                        if (ImGui.IsMouseHoveringRect(rowMin, rowMax) && ImGui.IsMouseClicked(ImGuiMouseButton.Right))
+                        {
+                            ImGui.OpenPopup($"GroupContext##{boneGroup.Key}");
+                        }
+
+                        if (ImGui.BeginPopup($"GroupContext##{boneGroup.Key}"))
+                        {
+                            using (var disabled = ImRaii.Disabled(!_isUnlocked))
+                            {
+                                if (ImGui.MenuItem("Copy Group"))
                                 {
-                                    _popupSystem.ShowPopup(PopupSystem.Messages.ActionError);
+                                    try
+                                    {
+                                        var editedBones = boneGroup
+                                            .Where(b => b.Transform != null && b.Transform.IsEdited())
+                                            .Select(b => (b.BoneCodeName, b.Transform))
+                                            .ToList();
+
+                                        if (editedBones.Count > 0)
+                                        {
+                                            _pendingClipboardText = Base64Helper.ExportEditedBonesToBase64(editedBones);
+                                        }
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        _popupSystem.ShowPopup(PopupSystem.Messages.ActionError);
+                                    }
+                                }
+
+                                if (ImGui.MenuItem("Import Group"))
+                                {
+                                    var clipboardText = Clipboard.GetText();
+                                    if (!string.IsNullOrEmpty(clipboardText))
+                                        _pendingImportText = clipboardText;
                                 }
                             }
 
-                            if (ImGui.MenuItem("Import Group"))
+                            ImGui.EndPopup();
+                        }
+
+                        if (expanded)
+                        {
+                            ImGui.TableNextRow();
+                            foreach (var erp in boneGroup.OrderBy(x => BoneData.GetBoneRanking(x.BoneCodeName)))
                             {
-                                var clipboardText = Clipboard.GetText();
-                                if (!string.IsNullOrEmpty(clipboardText))
-                                    _pendingImportText = clipboardText;
+                                CompleteBoneEditor(boneGroup.Key, erp);
                             }
                         }
 
-                        ImGui.EndPopup();
+                        _groupExpandedState[boneGroup.Key] = expanded;
                     }
-
-                    if (expanded)
-                    {
-                        ImGui.TableNextRow();
-                        foreach (var erp in boneGroup.OrderBy(x => BoneData.GetBoneRanking(x.BoneCodeName)))
-                        {
-                            CompleteBoneEditor(boneGroup.Key, erp);
-                        }
-                    }
-
-                    _groupExpandedState[boneGroup.Key] = expanded;
                 }
             }
         }
+
+        _editorService.SetBoneEditorSliderActive(_boneEditorSliderActive);
 
         if (!string.IsNullOrEmpty(_pendingClipboardText))
         {
@@ -536,12 +513,12 @@ public class BoneEditorPanel
         if (!popup)
             return;
 
-        ImGui.SetCursorPos(new Vector2(ImGui.GetWindowWidth() / 4 - 40, ImGui.GetWindowHeight() / 4));
+        ImGui.SetCursorPos(new Vector2((ImGui.GetWindowWidth() / 4) - 40, ImGui.GetWindowHeight() / 4));
         ImGuiUtil.TextWrapped("You have unsaved changes in current template, what would you like to do?");
 
         var buttonWidth = new Vector2(150 * ImGuiHelpers.GlobalScale, 0);
-        var yPos = ImGui.GetWindowHeight() - 2 * ImGui.GetFrameHeight();
-        var xPos = (ImGui.GetWindowWidth() - ImGui.GetStyle().ItemSpacing.X) / 4 - buttonWidth.X;
+        var yPos = ImGui.GetWindowHeight() - (2 * ImGui.GetFrameHeight());
+        var xPos = ((ImGui.GetWindowWidth() - ImGui.GetStyle().ItemSpacing.X) / 4) - buttonWidth.X;
         ImGui.SetCursorPos(new Vector2(xPos, yPos));
 
         var ExitedEditor = false;
@@ -576,13 +553,75 @@ public class BoneEditorPanel
         }
 
         if (ExitedEditor)
-        {
-            _undoStack.Clear();
-            _redoStack.Clear();
-        }
+            _editorService.ClearHistory();
     }
 
     #region ImGui helper functions
+
+    private static Vector2 GetAttributeButtonSize()
+    {
+        var height = ImGui.GetFrameHeight();
+        return new Vector2(height * 2.9f, height);
+    }
+
+    private static Vector2 GetToggleButtonSize()
+    {
+        var height = ImGui.GetFrameHeight();
+        return new Vector2(height * 1.4f, height);
+    }
+
+    private bool DrawAttributeButton(BoneAttribute attribute, FontAwesomeIcon icon, string title, string? description = null)
+    {
+        var isActive = _editingAttribute == attribute;
+        var size = GetAttributeButtonSize();
+        bool clicked;
+        using (var colors = ImRaii.PushColor(ImGuiCol.Button, AttributeButtonActiveColor, isActive)
+                   .Push(ImGuiCol.ButtonHovered, AttributeButtonHoverColor, isActive)
+                   .Push(ImGuiCol.ButtonActive, AttributeButtonPressedColor, isActive))
+        using (var align = ImRaii.PushStyle(ImGuiStyleVar.ButtonTextAlign, new Vector2(0.5f, 0.5f)))
+        using (var font = ImRaii.PushFont(UiBuilder.IconFont))
+        {
+            clicked = ImGui.Button($"{icon.ToIconString()}##attribute-{attribute}", size);
+        }
+        DrawControlTooltip(title, description);
+        return clicked;
+    }
+
+    private bool DrawToggleButton(string id, FontAwesomeIcon icon, bool isActive, string title, string description)
+    {
+        var size = GetToggleButtonSize();
+        bool clicked;
+        using (var colors = ImRaii.PushColor(ImGuiCol.Button, ToggleButtonActiveColor, isActive)
+                   .Push(ImGuiCol.ButtonHovered, ToggleButtonHoverColor, isActive)
+                   .Push(ImGuiCol.ButtonActive, ToggleButtonPressedColor, isActive))
+        using (var align = ImRaii.PushStyle(ImGuiStyleVar.ButtonTextAlign, new Vector2(0.5f, 0.5f)))
+        using (var font = ImRaii.PushFont(UiBuilder.IconFont))
+        {
+            clicked = ImGui.Button($"{icon.ToIconString()}##{id}", size);
+        }
+        DrawControlTooltip(title, description);
+        return clicked;
+    }
+
+    private static void DrawControlTooltip(string title, string? description = null)
+    {
+        if (!ImGui.IsItemHovered())
+            return;
+
+        var wrapWidth = ImGui.GetFontSize() * 32f;
+        var maxWidth = wrapWidth + (ImGui.GetStyle().WindowPadding.X * 2f);
+        ImGui.SetNextWindowSizeConstraints(Vector2.Zero, new Vector2(maxWidth, float.MaxValue));
+        ImGui.BeginTooltip();
+        ImGui.TextUnformatted(title);
+        if (!string.IsNullOrEmpty(description))
+        {
+            ImGui.Separator();
+            ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + wrapWidth);
+            ImGui.TextUnformatted(description);
+            ImGui.PopTextWrapPos();
+        }
+        ImGui.EndTooltip();
+    }
 
     private bool ResetBoneButton(EditRowParams bone)
     {
@@ -592,9 +631,8 @@ public class BoneEditorPanel
 
         if (output)
         {
-            _editorManager.ResetBoneAttributeChanges(bone.BoneCodeName, _editingAttribute);
-            if (_isMirrorModeEnabled && bone.Basis?.TwinBone != null) //todo: put it inside manager
-                _editorManager.ResetBoneAttributeChanges(bone.Basis.TwinBone.BoneName, _editingAttribute);
+            var twin = bone.Basis?.TwinBone?.BoneName;
+            _editorService.ResetBoneAttribute(bone.BoneCodeName, twin, _editingAttribute);
         }
 
         return output;
@@ -608,9 +646,8 @@ public class BoneEditorPanel
 
         if (output)
         {
-            _editorManager.RevertBoneAttributeChanges(bone.BoneCodeName, _editingAttribute);
-            if (_isMirrorModeEnabled && bone.Basis?.TwinBone != null) //todo: put it inside manager
-                _editorManager.RevertBoneAttributeChanges(bone.Basis.TwinBone.BoneName, _editingAttribute);
+            var twin = bone.Basis?.TwinBone?.BoneName;
+            _editorService.RevertBoneAttribute(bone.BoneCodeName, twin, _editingAttribute);
         }
 
         return output;
@@ -639,7 +676,7 @@ public class BoneEditorPanel
 
     private bool FavoriteButton(EditRowParams bone)
     {
-        var isFavorite = _favoriteBones.Contains(bone.BoneCodeName);
+        var isFavorite = _editorService.IsFavoriteBone(bone.BoneCodeName);
 
         const FontAwesomeIcon icon = FontAwesomeIcon.Star;
         var id = $"##Favorite{bone.BoneCodeName}";
@@ -657,23 +694,21 @@ public class BoneEditorPanel
 
         if (output)
         {
-            if (isFavorite)
-                _favoriteBones.Remove(bone.BoneCodeName);
-            else
-                _favoriteBones.Add(bone.BoneCodeName);
-
-            _configuration.EditorConfiguration.FavoriteBones = _favoriteBones.ToHashSet();
-            _configuration.Save();
+            _editorService.ToggleFavorite(bone.BoneCodeName);
+            isFavorite = _editorService.IsFavoriteBone(bone.BoneCodeName);
         }
 
         return isFavorite;
     }
 
+    private static (float Velocity, float Min, float Max) GetSliderSettings(BoneAttribute attribute)
+        => attribute == BoneAttribute.Rotation
+            ? (0.1f, -360f, 360f)
+            : (0.001f, -10f, 10f);
+
     private bool FullBoneSlider(string label, ref Vector3 value)
     {
-        var velocity = _editingAttribute == BoneAttribute.Rotation ? 0.1f : 0.001f;
-        var minValue = _editingAttribute == BoneAttribute.Rotation ? -360.0f : -10.0f;
-        var maxValue = _editingAttribute == BoneAttribute.Rotation ? 360.0f : 10.0f;
+        var (velocity, minValue, maxValue) = GetSliderSettings(_editingAttribute);
 
         var temp = _editingAttribute switch
         {
@@ -684,7 +719,11 @@ public class BoneEditorPanel
 
 
         ImGui.PushItemWidth(ImGui.GetColumnWidth());
-        if (ImGui.DragFloat(label, ref temp, velocity, minValue, maxValue, $"%.{_precision}f"))
+        var changed = ImGui.DragFloat(label, ref temp, velocity, minValue, maxValue, $"%.{_precision}f");
+        if (ImGui.IsItemActive())
+            _boneEditorSliderActive = true;
+
+        if (changed)
         {
             value = new Vector3(temp, temp, temp);
             return true;
@@ -696,13 +735,15 @@ public class BoneEditorPanel
 
     private bool SingleValueSlider(string label, ref float value)
     {
-        var velocity = _editingAttribute == BoneAttribute.Rotation ? 0.1f : 0.001f;
-        var minValue = _editingAttribute == BoneAttribute.Rotation ? -360.0f : -10.0f;
-        var maxValue = _editingAttribute == BoneAttribute.Rotation ? 360.0f : 10.0f;
+        var (velocity, minValue, maxValue) = GetSliderSettings(_editingAttribute);
 
         ImGui.PushItemWidth(ImGui.GetColumnWidth());
         var temp = value;
-        if (ImGui.DragFloat(label, ref temp, velocity, minValue, maxValue, $"%.{_precision}f"))
+        var changed = ImGui.DragFloat(label, ref temp, velocity, minValue, maxValue, $"%.{_precision}f");
+        if (ImGui.IsItemActive())
+            _boneEditorSliderActive = true;
+
+        if (changed)
         {
             value = temp;
             return true;
@@ -729,19 +770,8 @@ public class BoneEditorPanel
         var displayName = bone.BoneDisplayName;
         var transform = new BoneTransform(bone.Transform);
 
-        var newVector = _editingAttribute switch
-        {
-            BoneAttribute.Position => transform.Translation,
-            BoneAttribute.Rotation => transform.Rotation,
-            _ => transform.Scaling
-        };
-
-        var propagationEnabled = _editingAttribute switch
-        {
-            BoneAttribute.Position => transform.PropagateTranslation,
-            BoneAttribute.Rotation => transform.PropagateRotation,
-            _ => transform.PropagateScale
-        };
+        var newVector = transform.GetValueForAttribute(_editingAttribute);
+        var propagationEnabled = transform.IsPropagationEnabledForAttribute(_editingAttribute);
 
         bool valueChanged = false;
 
@@ -762,7 +792,7 @@ public class BoneEditorPanel
             _propagateButtonXPos = ImGui.GetCursorPosX();
             if (PropagateCheckbox(bone, ref propagationEnabled))
             {
-                SaveStateForUndo(CaptureCurrentState());
+                _editorService.SaveCurrentStateForUndo();
                 valueChanged = true;
             }
 
@@ -770,15 +800,9 @@ public class BoneEditorPanel
             isFavorite = FavoriteButton(bone);
 
             // adjusted logic, should only snapshot if there is a change in the value.
-            // change da X
+            // change the X
             ImGui.TableNextColumn();
             float tempX = newVector.X;
-            if (ImGui.IsItemActivated())
-            {
-                _initialX = tempX;
-                if (_pendingUndoSnapshot == null)
-                    _pendingUndoSnapshot = CaptureCurrentState();
-            }
             using (new SliderHighlightScope(isPropagationAffected, sliderHighlightColor))
             {
                 if (SingleValueSlider($"##{displayName}-X", ref tempX))
@@ -787,24 +811,11 @@ public class BoneEditorPanel
                     valueChanged = true;
                 }
             }
-            if (ImGui.IsItemDeactivatedAfterEdit())
-            {
-                if (_pendingUndoSnapshot != null && _initialX != newVector.X)
-                {
-                    SaveStateForUndo(_pendingUndoSnapshot);
-                    _pendingUndoSnapshot = null;
-                }
-            }
+            TrackSliderHistory();
 
-            // change da Y
+            // change the Y
             ImGui.TableNextColumn();
             float tempY = newVector.Y;
-            if (ImGui.IsItemActivated())
-            {
-                _initialY = tempY;
-                if (_pendingUndoSnapshot == null)
-                    _pendingUndoSnapshot = CaptureCurrentState();
-            }
             using (new SliderHighlightScope(isPropagationAffected, sliderHighlightColor))
             {
                 if (SingleValueSlider($"##{displayName}-Y", ref tempY))
@@ -813,24 +824,11 @@ public class BoneEditorPanel
                     valueChanged = true;
                 }
             }
-            if (ImGui.IsItemDeactivatedAfterEdit())
-            {
-                if (_pendingUndoSnapshot != null && _initialY != newVector.Y)
-                {
-                    SaveStateForUndo(_pendingUndoSnapshot);
-                    _pendingUndoSnapshot = null;
-                }
-            }
+            TrackSliderHistory();
 
-            // change da Z
+            // change the Z
             ImGui.TableNextColumn();
             float tempZ = newVector.Z;
-            if (ImGui.IsItemActivated())
-            {
-                _initialZ = tempZ;
-                if (_pendingUndoSnapshot == null)
-                    _pendingUndoSnapshot = CaptureCurrentState();
-            }
             using (new SliderHighlightScope(isPropagationAffected, sliderHighlightColor))
             {
                 if (SingleValueSlider($"##{displayName}-Z", ref tempZ))
@@ -839,14 +837,7 @@ public class BoneEditorPanel
                     valueChanged = true;
                 }
             }
-            if (ImGui.IsItemDeactivatedAfterEdit())
-            {
-                if (_pendingUndoSnapshot != null && _initialZ != newVector.Z)
-                {
-                    SaveStateForUndo(_pendingUndoSnapshot);
-                    _pendingUndoSnapshot = null;
-                }
-            }
+            TrackSliderHistory();
 
             // scale
             if (_editingAttribute != BoneAttribute.Scale)
@@ -854,12 +845,6 @@ public class BoneEditorPanel
 
             ImGui.TableNextColumn();
             Vector3 tempScale = newVector;
-            if (ImGui.IsItemActivated())
-            {
-                _initialScale = tempScale;
-                if (_pendingUndoSnapshot == null)
-                    _pendingUndoSnapshot = CaptureCurrentState();
-            }
             using (new SliderHighlightScope(isPropagationAffected, sliderHighlightColor))
             {
                 if (FullBoneSlider($"##{displayName}-All", ref tempScale))
@@ -868,14 +853,7 @@ public class BoneEditorPanel
                     valueChanged = true;
                 }
             }
-            if (ImGui.IsItemDeactivatedAfterEdit())
-            {
-                if (_pendingUndoSnapshot != null && _initialScale != newVector)
-                {
-                    SaveStateForUndo(_pendingUndoSnapshot);
-                    _pendingUndoSnapshot = null;
-                }
-            }
+            TrackSliderHistory();
 
             if (_editingAttribute != BoneAttribute.Scale)
                 ImGui.EndDisabled();
@@ -898,8 +876,35 @@ public class BoneEditorPanel
         if (DrawParentChainIndicator(bone, isPropagationAffected))
             ImGui.SameLine();
 
-        CtrlHelper.StaticLabel(!isFavorite ? displayName : $"{displayName} ({boneFamily})", CtrlHelper.TextAlignment.Left,
-            BoneData.IsIVCSCompatibleBone(codename) ? $"(IVCS Compatible) {codename}" : codename);
+        var boneLabel = !isFavorite ? displayName : $"{displayName} ({boneFamily})";
+        var rawLabel = BoneData.IsIVCSCompatibleBone(codename) ? $"(IVCS Compatible) {codename}" : codename;
+        var wasSelected = string.Equals(_editorService.SelectedBone, codename, StringComparison.Ordinal);
+        var buttonPadding = ImGui.GetStyle().FramePadding;
+        var textSize = ImGui.CalcTextSize(boneLabel);
+        var buttonSize = textSize + (buttonPadding * 2f);
+        using (var disabled = ImRaii.Disabled(!IsEditorActive || IsEditorPaused))
+        {
+            ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 1f);
+            if (wasSelected)
+                ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.3f, 0.45f, 0.75f, 0.4f));
+            else
+                ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.18f, 0.18f, 0.18f, 0.3f));
+            ImGui.PushStyleColor(ImGuiCol.Border, new Vector4(0.4f, 0.4f, 0.4f, 0.5f));
+            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.35f, 0.55f, 0.85f, 0.4f));
+            ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(0.25f, 0.45f, 0.75f, 0.5f));
+            if (ImGui.Button(boneLabel, buttonSize))
+                _editorService.SetSelectedBone(codename);
+            ImGui.PopStyleColor(4);
+            ImGui.PopStyleVar();
+        }
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.BeginTooltip();
+            ImGui.TextUnformatted(rawLabel);
+            ImGui.Separator();
+            ImGui.TextUnformatted("Click to select this bone for gizmo manipulation.");
+            ImGui.EndTooltip();
+        }
 
         if (valueChanged)
         {
@@ -915,6 +920,8 @@ public class BoneEditorPanel
                         : transform.GetStandardReflection()
                 );
             }
+
+            _editorService.SetSelectedBone(codename);
         }
 
         ImGui.TableNextRow();
@@ -949,7 +956,7 @@ public class BoneEditorPanel
 
             if (ImGuiComponents.IconButton($"##ChildLink{codename}", FontAwesomeIcon.Link))
             {
-                SaveStateForUndo(CaptureCurrentState());
+                _editorService.SaveCurrentStateForUndo();
 
                 isChildScaleIndependent = !isChildScaleIndependent;
                 if (isChildScaleIndependent)
@@ -989,8 +996,8 @@ public class BoneEditorPanel
         var cursorScreenPos = ImGui.GetCursorScreenPos();
         var rightEdgeX = cursorScreenPos.X + availWidth - bracketWidth;
 
-        var parentRowCenterY = _parentRowScreenPosY + rowHeight * 0.5f;
-        var childRowCenterY = cursorScreenPos.Y + rowHeight * 0.5f;
+        var parentRowCenterY = _parentRowScreenPosY + (rowHeight * 0.5f);
+        var childRowCenterY = cursorScreenPos.Y + (rowHeight * 0.5f);
         var bracketCenterY = (parentRowCenterY + childRowCenterY) * 0.5f;
 
         var topY = parentRowCenterY;
@@ -1010,7 +1017,7 @@ public class BoneEditorPanel
         else
         {
             var gapStart = new Vector2(rightEdgeX, topY - heightThird);
-            var gapEnd = new Vector2(rightEdgeX, topY - 2 * heightThird);
+            var gapEnd = new Vector2(rightEdgeX, topY - (2 * heightThird));
             drawList.AddLine(topLeft, gapStart, bracketColor, lineThickness);
             drawList.AddLine(gapEnd, bottomLeft, bracketColor, lineThickness);
         }
@@ -1020,87 +1027,35 @@ public class BoneEditorPanel
         {
             ImGui.TableNextColumn();
             float tempChildX = childScale.X;
-            if (ImGui.IsItemActivated())
-            {
-                _initialChildX = tempChildX;
-                if (_pendingUndoSnapshot == null)
-                    _pendingUndoSnapshot = CaptureCurrentState();
-            }
             if (SingleValueSlider($"##child-{displayName}-X", ref tempChildX))
             {
                 childScale.X = tempChildX;
                 childScaleChanged = true;
             }
-            if (ImGui.IsItemDeactivatedAfterEdit())
-            {
-                if (_pendingUndoSnapshot != null && _initialChildX != childScale.X)
-                {
-                    SaveStateForUndo(_pendingUndoSnapshot);
-                    _pendingUndoSnapshot = null;
-                }
-            }
+            TrackSliderHistory();
 
             ImGui.TableNextColumn();
             float tempChildY = childScale.Y;
-            if (ImGui.IsItemActivated())
-            {
-                _initialChildY = tempChildY;
-                if (_pendingUndoSnapshot == null)
-                    _pendingUndoSnapshot = CaptureCurrentState();
-            }
             if (SingleValueSlider($"##child-{displayName}-Y", ref tempChildY))
             {
                 childScale.Y = tempChildY;
                 childScaleChanged = true;
             }
-            if (ImGui.IsItemDeactivatedAfterEdit())
-            {
-                if (_pendingUndoSnapshot != null && _initialChildY != childScale.Y)
-                {
-                    SaveStateForUndo(_pendingUndoSnapshot);
-                    _pendingUndoSnapshot = null;
-                }
-            }
+            TrackSliderHistory();
 
             ImGui.TableNextColumn();
             float tempChildZ = childScale.Z;
-            if (ImGui.IsItemActivated())
-            {
-                _initialChildZ = tempChildZ;
-                if (_pendingUndoSnapshot == null)
-                    _pendingUndoSnapshot = CaptureCurrentState();
-            }
             if (SingleValueSlider($"##child-{displayName}-Z", ref tempChildZ))
             {
                 childScale.Z = tempChildZ;
                 childScaleChanged = true;
             }
-            if (ImGui.IsItemDeactivatedAfterEdit())
-            {
-                if (_pendingUndoSnapshot != null && _initialChildZ != childScale.Z)
-                {
-                    SaveStateForUndo(_pendingUndoSnapshot);
-                    _pendingUndoSnapshot = null;
-                }
-            }
+            TrackSliderHistory();
 
             ImGui.TableNextColumn();
-            if (ImGui.IsItemActivated())
-            {
-                _initialChildScale = childScale;
-                if (_pendingUndoSnapshot == null)
-                    _pendingUndoSnapshot = CaptureCurrentState();
-            }
             if (FullBoneSlider($"##child-{displayName}-All", ref childScale))
                 childScaleChanged = true;
-            if (ImGui.IsItemDeactivatedAfterEdit())
-            {
-                if (_pendingUndoSnapshot != null && _initialChildScale != childScale)
-                {
-                    SaveStateForUndo(_pendingUndoSnapshot);
-                    _pendingUndoSnapshot = null;
-                }
-            }
+            TrackSliderHistory();
         }
 
         ImGui.TableNextColumn();
@@ -1184,12 +1139,7 @@ public class BoneEditorPanel
         foreach (var row in rowList)
         {
             var transform = row.Transform;
-            var shouldPropagate = _editingAttribute switch
-            {
-                BoneAttribute.Position => transform.PropagateTranslation,
-                BoneAttribute.Rotation => transform.PropagateRotation,
-                _ => transform.PropagateScale
-            };
+            var shouldPropagate = transform.IsPropagationEnabledForAttribute(_editingAttribute);
 
             if (!shouldPropagate)
                 continue;
@@ -1206,75 +1156,35 @@ public class BoneEditorPanel
 
     private IEnumerable<string> EnumerateDescendants(EditRowParams source, HashSet<string> available)
     {
-        if (source.Basis != null)
-        {
-            foreach (var descendant in source.Basis.GetDescendants())
-            {
-                if (available.Contains(descendant.BoneName))
-                    yield return descendant.BoneName;
-            }
-
-            yield break;
-        }
-
-        foreach (var descendant in EnumerateDescendantsFromBoneData(source.BoneCodeName))
+        foreach (var descendant in BoneRelationHelper.EnumerateDescendants(source.Basis, source.BoneCodeName))
         {
             if (available.Contains(descendant))
                 yield return descendant;
         }
     }
 
-    private static IEnumerable<string> EnumerateDescendantsFromBoneData(string root)
-    {
-        if (string.IsNullOrEmpty(root))
-            yield break;
-
-        var visited = new HashSet<string>(StringComparer.Ordinal);
-        var stack = new Stack<string>(BoneData.GetChildren(root));
-
-        while (stack.Count > 0)
-        {
-            var current = stack.Pop();
-            if (!visited.Add(current))
-                continue;
-
-            yield return current;
-
-            foreach (var child in BoneData.GetChildren(current))
-                stack.Push(child);
-        }
-    }
-
     private IEnumerable<string> EnumerateAncestors(EditRowParams bone)
     {
-        if (bone.Basis != null)
-        {
-            var parent = bone.Basis.ParentBone;
-            var visited = new HashSet<string>(StringComparer.Ordinal);
-
-            while (parent != null && visited.Add(parent.BoneName))
-            {
-                yield return parent.BoneName;
-                parent = parent.ParentBone;
-            }
-
-            yield break;
-        }
-
-        foreach (var ancestor in EnumerateAncestorsFromBoneData(bone.BoneCodeName))
+        foreach (var ancestor in BoneRelationHelper.EnumerateAncestors(bone.Basis, bone.BoneCodeName))
             yield return ancestor;
     }
 
-    private static IEnumerable<string> EnumerateAncestorsFromBoneData(string codename)
-    {
-        var visited = new HashSet<string>(StringComparer.Ordinal);
-        var parent = BoneData.GetParent(codename);
+    private void ApplyEditorAttribute(BoneAttribute attribute)
+        => _editorService.SetActiveAttribute(attribute);
 
-        while (!string.IsNullOrEmpty(parent) && visited.Add(parent))
-        {
-            yield return parent;
-            parent = BoneData.GetParent(parent);
-        }
+    private void ApplyMirrorMode(bool enabled)
+        => _editorService.SetMirrorMode(enabled);
+
+    private void ApplyGizmoEnabled(bool enabled)
+        => _editorService.SetGizmoEnabled(enabled);
+
+    private void TrackSliderHistory()
+    {
+        if (ImGui.IsItemActivated())
+            _editorService.BeginPendingEdit();
+
+        if (ImGui.IsItemDeactivatedAfterEdit())
+            _editorService.CommitPendingEditIfChanged();
     }
 
     private Vector4 GetPropagationHighlightVector(BoneData.BoneFamily family, string boneCodeName)
@@ -1282,36 +1192,6 @@ public class BoneEditorPanel
         return _propagationSources.Contains(boneCodeName)
             ? Constants.PropagationColors.GetParentColor(family)
             : Constants.PropagationColors.GetChildColor(family);
-    }
-
-    private Dictionary<string, BoneTransform> CaptureCurrentState()
-    {
-        return _editorManager.EditorProfile?.Armatures.Count > 0
-            ? _editorManager.EditorProfile.Armatures[0]
-                .GetAllBones()
-                .DistinctBy(b => b.BoneName)
-                .ToDictionary(
-                    b => b.BoneName,
-                    b => new BoneTransform(b.CustomizedTransform ?? new BoneTransform())
-                )
-            : new Dictionary<string, BoneTransform>();
-    }
-
-    private void SaveStateForUndo(Dictionary<string, BoneTransform> snapshot)
-    {
-        if (_undoStack.Count == 0 || !_undoStack.Peek().SequenceEqual(snapshot))
-        {
-            _undoStack.Push(snapshot);
-            _redoStack.Clear();
-        }
-    }
-
-    private void RestoreState(Dictionary<string, BoneTransform> state)
-    {
-        foreach (var kvp in state.DistinctBy(x => x.Key))
-        {
-            _editorManager.ModifyBoneTransform(kvp.Key, kvp.Value);
-        }
     }
 
     private readonly struct SliderHighlightScope : IDisposable

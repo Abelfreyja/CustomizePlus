@@ -1,5 +1,6 @@
 ﻿using CustomizePlus.Configuration.Data;
 using CustomizePlus.Core.Data;
+using CustomizePlus.Core.Extensions;
 using CustomizePlus.Game.Events;
 using CustomizePlus.Game.Services;
 using CustomizePlus.GameData.Extensions;
@@ -237,31 +238,16 @@ public class TemplateEditorManager : IDisposable
         if (!CurrentlyEditedTemplate!.Bones.ContainsKey(boneName))
             return false;
 
+        const bool defaultPropagationState = false;
+        var currentTransform = CurrentlyEditedTemplate!.Bones[boneName];
         var resetValue = GetResetValueForAttribute(attribute);
-        var defaultPropagationState = false;
 
-        switch (attribute)
-        {
-            case BoneAttribute.Position:
-                if ((resetValue == CurrentlyEditedTemplate!.Bones[boneName].Translation) &&
-                    (defaultPropagationState == CurrentlyEditedTemplate!.Bones[boneName].PropagateTranslation))
-                    return false;
-                break;
-            case BoneAttribute.Rotation:
-                if ((resetValue == CurrentlyEditedTemplate!.Bones[boneName].Rotation) &&
-                    (defaultPropagationState == CurrentlyEditedTemplate!.Bones[boneName].PropagateRotation))
-                    return false;
-                break;
-            case BoneAttribute.Scale:
-                if ((resetValue == CurrentlyEditedTemplate!.Bones[boneName].Scaling) &&
-                    (defaultPropagationState == CurrentlyEditedTemplate!.Bones[boneName].PropagateScale) &&
-                    (Vector3.One == CurrentlyEditedTemplate!.Bones[boneName].ChildScaling) &&
-                    (false == CurrentlyEditedTemplate!.Bones[boneName].ChildScalingIndependent))
-                    return false;
-                break;
-        }
+        var targetTransform = new BoneTransform(currentTransform);
+        targetTransform.UpdateAttribute(attribute, resetValue, defaultPropagationState);
+        if (IsAttributeStateEqual(currentTransform, targetTransform, attribute))
+            return false;
 
-        CurrentlyEditedTemplate!.Bones[boneName].UpdateAttribute(attribute, resetValue, defaultPropagationState);
+        currentTransform.UpdateAttribute(attribute, resetValue, defaultPropagationState);
 
         if (!HasChanges)
             HasChanges = true;
@@ -281,50 +267,36 @@ public class TemplateEditorManager : IDisposable
         if (!CurrentlyEditedTemplate!.Bones.ContainsKey(boneName))
             return false;
 
-        Vector3? originalValue = null!;
-        bool originalPropagationState = false;
+        var currentTransform = CurrentlyEditedTemplate!.Bones[boneName];
+        var hasOriginal = _currentlyEditedTemplateOriginal.Bones.TryGetValue(boneName, out var originalTransform);
 
-        if (_currentlyEditedTemplateOriginal.Bones.ContainsKey(boneName))
+        if (hasOriginal)
         {
-            switch (attribute)
-            {
-                case BoneAttribute.Position:
-                    originalValue = _currentlyEditedTemplateOriginal.Bones[boneName].Translation;
-                    originalPropagationState = _currentlyEditedTemplateOriginal.Bones[boneName].PropagateTranslation;
-                    if ((originalValue == CurrentlyEditedTemplate!.Bones[boneName].Translation) &&
-                        (originalPropagationState == CurrentlyEditedTemplate!.Bones[boneName].PropagateTranslation))
-                        return false;
-                    break;
-                case BoneAttribute.Rotation:
-                    originalValue = _currentlyEditedTemplateOriginal.Bones[boneName].Rotation;
-                    originalPropagationState = _currentlyEditedTemplateOriginal.Bones[boneName].PropagateRotation;
-                    if ((originalValue == CurrentlyEditedTemplate!.Bones[boneName].Rotation) &&
-                        (originalPropagationState == CurrentlyEditedTemplate!.Bones[boneName].PropagateRotation))
-                        return false;
-                    break;
-                case BoneAttribute.Scale:
-                    originalValue = _currentlyEditedTemplateOriginal.Bones[boneName].Scaling;
-                    originalPropagationState = _currentlyEditedTemplateOriginal.Bones[boneName].PropagateScale;
-                    var originalChildScaling = _currentlyEditedTemplateOriginal.Bones[boneName].ChildScaling;
-                    var originalChildScalingIndependent = _currentlyEditedTemplateOriginal.Bones[boneName].ChildScalingIndependent;
-                    if ((originalValue == CurrentlyEditedTemplate!.Bones[boneName].Scaling) &&
-                        (originalPropagationState == CurrentlyEditedTemplate!.Bones[boneName].PropagateScale) &&
-                        (originalChildScaling == CurrentlyEditedTemplate!.Bones[boneName].ChildScaling) &&
-                        (originalChildScalingIndependent == CurrentlyEditedTemplate!.Bones[boneName].ChildScalingIndependent))
-                        return false;
+            if (IsAttributeStateEqual(currentTransform, originalTransform!, attribute))
+                return false;
 
-                    CurrentlyEditedTemplate!.Bones[boneName].ChildScaling = originalChildScaling;
-                    CurrentlyEditedTemplate!.Bones[boneName].ChildScalingIndependent = originalChildScalingIndependent;
-                    break;
+            if (attribute == BoneAttribute.Scale)
+            {
+                currentTransform.ChildScaling = originalTransform!.ChildScaling;
+                currentTransform.ChildScalingIndependent = originalTransform.ChildScalingIndependent;
             }
+
+            currentTransform.UpdateAttribute(
+                attribute,
+                originalTransform!.GetValueForAttribute(attribute),
+                originalTransform.IsPropagationEnabledForAttribute(attribute));
         }
         else
         {
-            originalValue = GetResetValueForAttribute(attribute);
-            originalPropagationState = false;
-        }
+            const bool defaultPropagationState = false;
+            var resetValue = GetResetValueForAttribute(attribute);
+            var targetTransform = new BoneTransform(currentTransform);
+            targetTransform.UpdateAttribute(attribute, resetValue, defaultPropagationState);
+            if (IsAttributeStateEqual(currentTransform, targetTransform, attribute))
+                return false;
 
-        CurrentlyEditedTemplate!.Bones[boneName].UpdateAttribute(attribute, originalValue.Value, originalPropagationState);
+            currentTransform.UpdateAttribute(attribute, resetValue, defaultPropagationState);
+        }
 
         if (!HasChanges)
             HasChanges = true;
@@ -366,6 +338,27 @@ public class TemplateEditorManager : IDisposable
                 ChangeEditorCharacterInternal(localPlayer);
             }
         }
+    }
+
+    private static bool IsAttributeStateEqual(BoneTransform left, BoneTransform right, BoneAttribute attribute)
+    {
+        if (!IsAttributeValueEqual(left.GetValueForAttribute(attribute), right.GetValueForAttribute(attribute), attribute))
+            return false;
+
+        if (left.IsPropagationEnabledForAttribute(attribute) != right.IsPropagationEnabledForAttribute(attribute))
+            return false;
+
+        if (attribute != BoneAttribute.Scale)
+            return true;
+
+        return left.ChildScaling.IsApproximately(right.ChildScaling, 0.00001f)
+               && left.ChildScalingIndependent == right.ChildScalingIndependent;
+    }
+
+    private static bool IsAttributeValueEqual(Vector3 left, Vector3 right, BoneAttribute attribute)
+    {
+        var tolerance = attribute == BoneAttribute.Rotation ? 0.1f : 0.00001f;
+        return left.IsApproximately(right, tolerance);
     }
 
     private Vector3 GetResetValueForAttribute(BoneAttribute attribute)

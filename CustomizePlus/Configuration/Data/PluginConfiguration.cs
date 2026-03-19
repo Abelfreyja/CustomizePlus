@@ -92,6 +92,8 @@ public class PluginConfiguration : IPluginConfiguration, ISavable
 
         public bool BoneMirroringEnabled { get; set; } = false;
 
+        public bool GizmoEnabled { get; set; } = true;
+
         public ActorIdentifier PreviewCharacter { get; set; } = ActorIdentifier.Invalid;
 
         public int EditorValuesPrecision { get; set; } = 3;

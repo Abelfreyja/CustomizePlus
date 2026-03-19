@@ -267,7 +267,7 @@ public class TemplateManager : IDisposable
     {
         foreach (var kvp in template.Bones)
         {
-            if (!kvp.Value.IsEdited())
+            if (!kvp.Value.IsEdited(true))
             {
                 template.Bones.Remove(kvp.Key);
             }

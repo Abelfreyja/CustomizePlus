@@ -119,6 +119,7 @@ public static class ServiceManagerBuilder
             .AddSingleton<PopupSystem>()
             .AddSingleton<CPlusChangeLog>()
             .AddSingleton<CPlusWindowSystem>()
+            .AddSingleton<GizmoRenderer>()
             .AddSingleton<MainWindow>();
 
         return services;
@@ -201,6 +202,7 @@ public static class ServiceManagerBuilder
         services
             .AddSingleton<GameObjectService>()
             .AddSingleton<GameStateService>()
+            .AddSingleton<CameraService>()
             .AddSingleton<EmoteService>()
             .AddSingleton<GearDataService>()
             .AddSingleton<GearSlotIconService>();
@@ -224,7 +226,8 @@ public static class ServiceManagerBuilder
         services
             .AddSingleton<TemplateManager>()
             .AddSingleton<TemplateFileSystem>()
-            .AddSingleton<TemplateEditorManager>();
+            .AddSingleton<TemplateEditorManager>()
+            .AddSingleton<TemplateEditorService>();
 
         return services;
     }

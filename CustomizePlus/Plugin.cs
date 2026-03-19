@@ -37,6 +37,7 @@ public sealed class Plugin : IDalamudPlugin
             _services.GetService<UserNotifierService>();
             _services.GetService<CustomizePlusIpc>();
             _services.GetService<CPlusWindowSystem>();
+            _services.GetService<GizmoRenderer>();
             _services.GetService<CommandService>();
 
             Logger.Information($"Customize+ {VersionHelper.Version} ({ThisAssembly.Git.Commit}+{ThisAssembly.Git.Sha}) [FantasiaPlus] started");

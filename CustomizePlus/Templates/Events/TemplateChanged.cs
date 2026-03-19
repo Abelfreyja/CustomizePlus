@@ -20,6 +20,7 @@ public class TemplateChanged() : EventWrapper<TemplateChanged.Type, Template?, o
         EditorEnabled,
         EditorDisabled,
         EditorCharacterChanged,
+        EditorBoneSelectionChanged,
         ReloadedAll,
         WriteProtection
     }
@@ -31,6 +32,7 @@ public class TemplateChanged() : EventWrapper<TemplateChanged.Type, Template?, o
         TemplateFileSystem,
         ArmatureManager,
         ProfileManager,
+        TemplateEditorService,
         CustomizePlusIpc
     }
 }
