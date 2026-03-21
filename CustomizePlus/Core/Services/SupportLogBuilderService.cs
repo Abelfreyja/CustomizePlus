@@ -127,7 +127,7 @@ public class SupportLogBuilderService
         [
             "MareSynchronos", "Ktisis", "Brio", "DynamicBridge", "SimpleHeels",
             "IllusioVitae", "LoporritSync", "AQuestReborn", "RoleplayingVoiceDalamud", "AetherRemote",
-            "CustomizePlusPlus", "CharacterSelectPlugin"
+            "CustomizePlusPlus", "CharacterSelectPlugin", "Sundouleia"
         ];
         var plugins = _dalamudPluginInterface.InstalledPlugins
             .GroupBy(p => p.InternalName)
