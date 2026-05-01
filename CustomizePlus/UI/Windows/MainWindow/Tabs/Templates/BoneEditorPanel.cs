@@ -74,6 +74,7 @@ public class BoneEditorPanel
         ConfigurationService configurationService,
         GameObjectService gameObjectService,
         ActorAssignmentUi actorAssignmentUi,
+        PopupSystem popupSystem,
         Logger logger)
     {
         _templateFileSystemSelector = templateFileSystemSelector;
@@ -82,6 +83,7 @@ public class BoneEditorPanel
         _configurationService = configurationService;
         _gameObjectService = gameObjectService;
         _actorAssignmentUi = actorAssignmentUi;
+        _popupSystem = popupSystem;
         _logger = logger;
 
         _isShowLiveBones = configuration.EditorConfiguration.ShowLiveBones;
@@ -192,6 +194,9 @@ public class BoneEditorPanel
 
             using (var table = Im.Table.Begin("BoneEditorMenu", 2))
             {
+                if (!table)
+                    return;
+
                 table.SetupColumn("Attributes", TableColumnFlags.WidthFixed);
                 table.SetupColumn("Space", TableColumnFlags.WidthStretch);
 
@@ -316,14 +321,14 @@ public class BoneEditorPanel
 
                 DrawBoneEditorHeaderRow(showAllColumn, col1Label, col2Label, col3Label);
 
-                IEnumerable<EditRowParams> relevantModelBones = null!;
+                IEnumerable<BoneEditRow> relevantModelBones = null!;
                 if (_editorManager.IsEditorActive && _editorManager.EditorProfile != null && _editorManager.EditorProfile.Armatures.Count > 0)
                     relevantModelBones = _isShowLiveBones && _editorManager.EditorProfile.Armatures.Count > 0
-                        ? _editorManager.EditorProfile.Armatures[0].GetAllBones().DistinctBy(x => x.BoneName).Select(x => new EditRowParams(x))
+                        ? _editorManager.EditorProfile.Armatures[0].GetAllBones().DistinctBy(x => x.BoneName).Select(x => new BoneEditRow(x))
                         : _editorManager.EditorProfile.Armatures[0].BoneTemplateBinding.Where(x => x.Value.Bones.ContainsKey(x.Key))
-                            .Select(x => new EditRowParams(x.Key, x.Value.Bones[x.Key])); //todo: this is awful
+                            .Select(x => new BoneEditRow(x.Key, x.Value.Bones[x.Key])); //todo: this is awful
                 else
-                    relevantModelBones = _templateFileSystemSelector.Selected!.Bones.Select(x => new EditRowParams(x.Key, x.Value));
+                    relevantModelBones = _templateFileSystemSelector.Selected!.Bones.Select(x => new BoneEditRow(x.Key, x.Value));
 
                 if (!string.IsNullOrEmpty(_boneSearch))
                 {
@@ -453,39 +458,41 @@ public class BoneEditorPanel
                         Im.Popup.Open($"GroupContext##{boneGroup.Key}");
                     }
 
-                    using var popup = Im.Popup.Begin($"GroupContext##{boneGroup.Key}");
-                    if (popup)
+                    using (var popup = Im.Popup.Begin($"GroupContext##{boneGroup.Key}"))
                     {
-                        using (var disabled = Im.Disabled(!_isUnlocked))
+                        if (popup)
                         {
-                            if (Im.Menu.Item("Copy Group"))
+                            using (var disabled = Im.Disabled(!_isUnlocked))
                             {
-                                try
+                                if (Im.Menu.Item("Copy Group"))
                                 {
-                                    var editedBones = boneGroup
-                                        .Where(b => b.Transform != null && b.Transform.IsEdited())
-                                        .Select(b => (b.BoneCodeName, b.Transform))
-                                        .ToList();
-
-                                    if (editedBones.Count > 0)
+                                    try
                                     {
-                                        _pendingClipboardText = Base64Helper.ExportEditedBonesToBase64(editedBones);
+                                        var editedBones = boneGroup
+                                            .Where(b => b.Transform != null && b.Transform.IsEdited())
+                                            .Select(b => (b.BoneCodeName, b.Transform))
+                                            .ToList();
+
+                                        if (editedBones.Count > 0)
+                                        {
+                                            _pendingClipboardText = Base64Helper.ExportEditedBonesToBase64(editedBones);
+                                        }
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        _logger.Error($"Error while copying bone group: {ex}");
+                                        _popupSystem.ShowPopup(PopupSystem.Messages.ActionError);
                                     }
                                 }
-                                catch (Exception ex)
+
+                                if (Im.Menu.Item("Import Group"))
                                 {
-                                    _popupSystem.ShowPopup(PopupSystem.Messages.ActionError);
+                                    var clipboardText = Im.Clipboard.GetUtf16();
+                                    if (!string.IsNullOrEmpty(clipboardText))
+                                        _pendingImportText = clipboardText;
                                 }
                             }
-
-                            if (Im.Menu.Item("Import Group"))
-                            {
-                                var clipboardText = Im.Clipboard.GetUtf16();
-                                if (!string.IsNullOrEmpty(clipboardText))
-                                    _pendingImportText = clipboardText;
-                            }
                         }
-
                     }
 
                     if (expanded)
@@ -594,7 +601,7 @@ public class BoneEditorPanel
 
     #region UI helper functions
 
-    private bool ResetBoneButton(EditRowParams bone)
+    private bool ResetBoneButton(BoneEditRow bone)
     {
         var output = DrawIconButton(
             bone.BoneCodeName,
@@ -611,7 +618,7 @@ public class BoneEditorPanel
         return output;
     }
 
-    private bool RevertBoneButton(EditRowParams bone)
+    private bool RevertBoneButton(BoneEditRow bone)
     {
         var output = DrawIconButton(
             bone.BoneCodeName,
@@ -628,7 +635,7 @@ public class BoneEditorPanel
         return output;
     }
 
-    private bool PropagateCheckbox(EditRowParams bone, ref bool enabled)
+    private bool PropagateCheckbox(BoneEditRow bone, ref bool enabled)
     {
         const FontAwesomeIcon icon = FontAwesomeIcon.Link;
         var id = $"##Propagate{bone.BoneCodeName}";
@@ -645,7 +652,7 @@ public class BoneEditorPanel
         return output;
     }
 
-    private bool FavoriteButton(EditRowParams bone)
+    private bool FavoriteButton(BoneEditRow bone)
     {
         var isFavorite = _favoriteBones.Contains(bone.BoneCodeName);
 
@@ -749,7 +756,7 @@ public class BoneEditorPanel
         return false;
     }
 
-    private void CompleteBoneEditor(BoneData.BoneFamily boneFamily, EditRowParams bone)
+    private void CompleteBoneEditor(BoneData.BoneFamily boneFamily, BoneEditRow bone)
     {
         var codename = bone.BoneCodeName;
         var displayName = bone.BoneDisplayName;
@@ -804,7 +811,7 @@ public class BoneEditorPanel
                 if (_pendingUndoSnapshot == null)
                     _pendingUndoSnapshot = CaptureCurrentState();
             }
-            if (SingleValueSlider($"##{displayName}-X", ref tempX))
+            if (SingleValueSlider($"##{codename}-X", ref tempX))
             {
                 newVector.X = tempX;
                 valueChanged = true;
@@ -827,7 +834,7 @@ public class BoneEditorPanel
                 if (_pendingUndoSnapshot == null)
                     _pendingUndoSnapshot = CaptureCurrentState();
             }
-            if (SingleValueSlider($"##{displayName}-Y", ref tempY))
+            if (SingleValueSlider($"##{codename}-Y", ref tempY))
             {
                 newVector.Y = tempY;
                 valueChanged = true;
@@ -850,7 +857,7 @@ public class BoneEditorPanel
                 if (_pendingUndoSnapshot == null)
                     _pendingUndoSnapshot = CaptureCurrentState();
             }
-            if (SingleValueSlider($"##{displayName}-Z", ref tempZ))
+            if (SingleValueSlider($"##{codename}-Z", ref tempZ))
             {
                 newVector.Z = tempZ;
                 valueChanged = true;
@@ -874,7 +881,7 @@ public class BoneEditorPanel
                     if (_pendingUndoSnapshot == null)
                         _pendingUndoSnapshot = CaptureCurrentState();
                 }
-                if (FullBoneSlider($"##{displayName}-All", ref tempScale))
+                if (FullBoneSlider($"##{codename}-All", ref tempScale))
                 {
                     newVector = tempScale;
                     valueChanged = true;
@@ -931,7 +938,7 @@ public class BoneEditorPanel
         }
     }
 
-    private void RenderChildScalingRow(EditRowParams bone, BoneTransform transform)
+    private void RenderChildScalingRow(BoneEditRow bone, BoneTransform transform)
     {
         var codename = bone.BoneCodeName;
         var displayName = bone.BoneDisplayName;
@@ -1023,7 +1030,7 @@ public class BoneEditorPanel
                 if (_pendingUndoSnapshot == null)
                     _pendingUndoSnapshot = CaptureCurrentState();
             }
-            if (SingleValueSlider($"##child-{displayName}-X", ref tempChildX))
+            if (SingleValueSlider($"##child-{codename}-X", ref tempChildX))
             {
                 childScale.X = tempChildX;
                 childScaleChanged = true;
@@ -1045,7 +1052,7 @@ public class BoneEditorPanel
                 if (_pendingUndoSnapshot == null)
                     _pendingUndoSnapshot = CaptureCurrentState();
             }
-            if (SingleValueSlider($"##child-{displayName}-Y", ref tempChildY))
+            if (SingleValueSlider($"##child-{codename}-Y", ref tempChildY))
             {
                 childScale.Y = tempChildY;
                 childScaleChanged = true;
@@ -1067,7 +1074,7 @@ public class BoneEditorPanel
                 if (_pendingUndoSnapshot == null)
                     _pendingUndoSnapshot = CaptureCurrentState();
             }
-            if (SingleValueSlider($"##child-{displayName}-Z", ref tempChildZ))
+            if (SingleValueSlider($"##child-{codename}-Z", ref tempChildZ))
             {
                 childScale.Z = tempChildZ;
                 childScaleChanged = true;
@@ -1088,7 +1095,7 @@ public class BoneEditorPanel
                 if (_pendingUndoSnapshot == null)
                     _pendingUndoSnapshot = CaptureCurrentState();
             }
-            if (FullBoneSlider($"##child-{displayName}-All", ref childScale))
+            if (FullBoneSlider($"##child-{codename}-All", ref childScale))
                 childScaleChanged = true;
             if (Im.Item.DeactivatedAfterEdit)
             {
@@ -1159,24 +1166,24 @@ public class BoneEditorPanel
 /// Simple structure for representing arguments to the editor table.
 /// Can be constructed with or without access to a live armature.
 /// </summary>
-internal struct EditRowParams
+internal readonly record struct BoneEditRow
 {
-    public string BoneCodeName;
+    public string BoneCodeName { get; }
     public string BoneDisplayName => BoneData.GetBoneDisplayName(BoneCodeName);
-    public BoneTransform Transform;
-    public ModelBone? Basis = null;
+    public BoneTransform Transform { get; }
+    public ModelBone? Basis { get; }
 
-    public EditRowParams(ModelBone mb)
+    public BoneEditRow(ModelBone modelBone)
     {
-        BoneCodeName = mb.BoneName;
-        Transform = mb.CustomizedTransform ?? new BoneTransform();
-        Basis = mb;
+        BoneCodeName = modelBone.BoneName;
+        Transform = modelBone.CustomizedTransform ?? new BoneTransform();
+        Basis = modelBone;
     }
 
-    public EditRowParams(string codename, BoneTransform tr)
+    public BoneEditRow(string codeName, BoneTransform transform)
     {
-        BoneCodeName = codename;
-        Transform = tr;
+        BoneCodeName = codeName;
+        Transform = transform;
         Basis = null;
     }
 }

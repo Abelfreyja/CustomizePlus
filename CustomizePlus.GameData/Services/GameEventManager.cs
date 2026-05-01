@@ -2,7 +2,6 @@
 using Dalamud.Plugin.Services;
 using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
-using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.FFXIV.Client.Graphics.Scene;
 using Penumbra.GameData;
 
@@ -77,20 +76,19 @@ public unsafe class GameEventManager : IDisposable
 
     #region Copy Character
 
-    private delegate ulong CopyCharacterDelegate(CharacterSetupContainer* target, GameObject* source, uint unk);
+    private delegate ulong CopyCharacterDelegate(CharacterSetupContainer* target, Character* source, CharacterSetupContainer.CopyFlags flags);
 
     private readonly Hook<CopyCharacterDelegate> _copyCharacterHook;
 
-    private ulong CopyCharacterDetour(CharacterSetupContainer* target, GameObject* source, uint unk)
+    private ulong CopyCharacterDetour(CharacterSetupContainer* target, Character* source, CharacterSetupContainer.CopyFlags flags)
     {
-        // TODO: update when CS updated.
-        var character = ((Character**)target)[1];
+        var character = target->OwnerObject;
         if (CopyCharacter != null)
             foreach (var subscriber in CopyCharacter.GetInvocationList())
             {
                 try
                 {
-                    ((CopyCharacterEvent)subscriber).Invoke(character, (Character*)source);
+                    ((CopyCharacterEvent)subscriber).Invoke(character, source);
                 }
                 catch (Exception ex)
                 {
@@ -101,9 +99,9 @@ public unsafe class GameEventManager : IDisposable
             }
 
         /*Penumbra.Log.Verbose(
-            $"{Prefix} {nameof(CopyCharacter)} triggered with target 0x{(nint)target:X} and source 0x{(nint)source:X}.");*/
+            $"{Prefix} {nameof(CopyCharacter)} triggered with target 0x{(nint)target:X}, source 0x{(nint)source:X} and flags {flags}.");*/
         //todo: log
-        return _copyCharacterHook.Original(target, source, unk);
+        return _copyCharacterHook.Original(target, source, flags);
     }
 
     public delegate void CopyCharacterEvent(Character* target, Character* source);
@@ -112,18 +110,18 @@ public unsafe class GameEventManager : IDisposable
 
     #region CharacterBaseCreate
 
-    private delegate nint CharacterBaseCreateDelegate(uint a, nint b, nint c, byte d);
+    private delegate CharacterBase* CharacterBaseCreateDelegate(uint modelId, CustomizeData* customize, EquipmentModelId* equipment, byte unk);
 
     private readonly Hook<CharacterBaseCreateDelegate> _characterBaseCreateHook;
 
-    private nint CharacterBaseCreateDetour(uint a, nint b, nint c, byte d)
+    private CharacterBase* CharacterBaseCreateDetour(uint modelId, CustomizeData* customize, EquipmentModelId* equipment, byte unk)
     {
         if (CreatingCharacterBase != null)
             foreach (var subscriber in CreatingCharacterBase.GetInvocationList())
             {
                 try
                 {
-                    ((CreatingCharacterBaseEvent)subscriber).Invoke((nint)(&a), b, c);
+                    ((CreatingCharacterBaseEvent)subscriber).Invoke(&modelId, customize, equipment);
                 }
                 catch (Exception ex)
                 {
@@ -133,13 +131,13 @@ public unsafe class GameEventManager : IDisposable
                 }
             }
 
-        var ret = _characterBaseCreateHook.Original(a, b, c, d);
+        var ret = _characterBaseCreateHook.Original(modelId, customize, equipment, unk);
         if (CharacterBaseCreated != null)
             foreach (var subscriber in CharacterBaseCreated.GetInvocationList())
             {
                 try
                 {
-                    ((CharacterBaseCreatedEvent)subscriber).Invoke(a, b, c, ret);
+                    ((CharacterBaseCreatedEvent)subscriber).Invoke(modelId, customize, equipment, ret);
                 }
                 catch (Exception ex)
                 {
@@ -152,18 +150,18 @@ public unsafe class GameEventManager : IDisposable
         return ret;
     }
 
-    public delegate void CreatingCharacterBaseEvent(nint modelCharaId, nint customize, nint equipment);
-    public delegate void CharacterBaseCreatedEvent(uint modelCharaId, nint customize, nint equipment, nint drawObject);
+    public delegate void CreatingCharacterBaseEvent(uint* modelCharaId, CustomizeData* customize, EquipmentModelId* equipment);
+    public delegate void CharacterBaseCreatedEvent(uint modelCharaId, CustomizeData* customize, EquipmentModelId* equipment, CharacterBase* drawObject);
 
     #endregion
 
     #region CharacterBase Destructor
 
-    public delegate void CharacterBaseDestructorEvent(nint drawBase);
+    public delegate void CharacterBaseDestructorEvent(CharacterBase* drawBase);
 
     private readonly Hook<CharacterBaseDestructorEvent> _characterBaseDestructorHook;
 
-    private void CharacterBaseDestructorDetour(nint drawBase)
+    private void CharacterBaseDestructorDetour(CharacterBase* drawBase)
     {
         if (CharacterBaseDestructor != null)
             foreach (var subscriber in CharacterBaseDestructor.GetInvocationList())

@@ -38,14 +38,13 @@ public sealed unsafe class CopyCharacter : EventBase<CopyCharacter.Arguments, Co
     public bool Finished
         => _task.IsCompletedSuccessfully;
 
-    private delegate ulong Delegate(CharacterSetupContainer* target, Character* source, uint unk);
+    private delegate ulong Delegate(CharacterSetupContainer* target, Character* source, CharacterSetupContainer.CopyFlags flags);
 
-    private ulong Detour(CharacterSetupContainer* target, Character* source, uint unk)
+    private ulong Detour(CharacterSetupContainer* target, Character* source, CharacterSetupContainer.CopyFlags flags)
     {
-        // TODO: update when CS updated.
-        var character = ((Character**)target)[1];
-        //Penumbra.Log.Verbose($"[{Name}] Triggered with target: 0x{(nint)target:X}, source : 0x{(nint)source:X} unk: {unk}.");
+        var character = target->OwnerObject;
+        //Penumbra.Log.Verbose($"[{Name}] Triggered with target: 0x{(nint)target:X}, source : 0x{(nint)source:X} flags: {flags}.");
         Invoke(new Arguments(character, source));
-        return _task.Result.Original(target, source, unk);
+        return _task.Result.Original(target, source, flags);
     }
 }
