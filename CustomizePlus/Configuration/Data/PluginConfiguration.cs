@@ -44,7 +44,7 @@ public class PluginConfiguration : IPluginConfiguration, ISavable
         [JsonConverter(typeof(DoubleModifierJsonConverter))]
         public DoubleModifier DeleteTemplateModifier { get; set; } = new(ModifierHotkey.Control, ModifierHotkey.Shift);
 
-        public bool FoldersDefaultOpen { get; set; } = false; // i hate you.
+        public bool FoldersDefaultOpen { get; set; } = true;
 
         public bool OpenWindowAtStart { get; set; } = false;
 

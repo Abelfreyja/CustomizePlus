@@ -5,7 +5,6 @@ using CustomizePlus.Armatures.Services;
 using CustomizePlus.Configuration.Services;
 using CustomizePlus.Core.Events;
 using CustomizePlus.Core.Services;
-using CustomizePlus.Core.Services.Dalamud;
 using CustomizePlus.Game.Events;
 using CustomizePlus.Game.Services;
 using CustomizePlus.Game.Services.GPose;
@@ -51,7 +50,7 @@ public static class ServiceManagerBuilder
             .AddDataLoaders()
             .AddApi();
 
-        DalamudServices.AddServices(services, pi);
+        services.AddDalamudServices(pi);
 
         services.AddIServices(typeof(EquipItem).Assembly);
         services.AddIServices(typeof(Plugin).Assembly);
