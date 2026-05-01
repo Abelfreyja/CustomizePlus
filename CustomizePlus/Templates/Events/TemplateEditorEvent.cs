@@ -8,7 +8,7 @@ namespace CustomizePlus.Templates.Events;
 public class TemplateEditorEvent(LunaLogger log)
     : EventBase<TemplateEditorEvent.Arguments, TemplateEditorEvent.Priority>(nameof(TemplateEditorEvent), log)
 {
-    public readonly record struct Arguments(Type Type, Template? Template)
+    public readonly record struct Arguments(Type Type, Template? Template);
 
     public enum Type
     {
