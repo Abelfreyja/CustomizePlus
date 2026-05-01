@@ -1,7 +1,5 @@
-﻿using Dalamud.Bindings.ImGui;
-using Dalamud.Interface;
+﻿using Dalamud.Interface;
 using Dalamud.Utility;
-using System.Text;
 
 namespace CustomizePlus.Core.Helpers;
 
@@ -11,12 +9,12 @@ public static class CtrlHelper
     /// Gets the width of an icon button, checkbox, etc...
     /// </summary>
     /// per https://github.com/ocornut/imgui/issues/3714#issuecomment-759319268
-    public static float IconButtonWidth => ImGui.GetFrameHeight() + 2 * ImGui.GetStyle().ItemInnerSpacing.X;
+    public static float IconButtonWidth => Im.Style.FrameHeight + 2 * Im.Style.ItemInnerSpacing.X;
 
     public static bool TextBox(string label, ref string value)
     {
-        ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X);
-        return ImGui.InputText(label, ref value, 1024);
+        Im.Item.SetNextWidthFull();
+        return Im.Input.Text(label, ref value, maxLength: 1024);
     }
 
     public static bool TextPropertyBox(string label, Func<string> get, Action<string> set)
@@ -33,19 +31,13 @@ public static class CtrlHelper
 
     public static bool Checkbox(string label, ref bool value)
     {
-        return ImGui.Checkbox(label, ref value);
+        return Im.Checkbox(label, ref value);
     }
 
     public static bool CheckboxWithTextAndHelp(string label, string text, string helpText, ref bool value)
     {
-        var checkBoxState = ImGui.Checkbox(label, ref value);
-        ImGui.SameLine();
-        FontAwesomeIcon.InfoCircle.Draw();
-        AddHoverText(helpText);
-        ImGui.SameLine();
-        ImGui.Text(text);
-
-        AddHoverText(helpText);
+        var checkBoxState = Im.Checkbox(label, ref value);
+        LunaStyle.DrawHelpMarkerLabel(text, helpText);
 
         return checkBoxState;
     }
@@ -53,7 +45,7 @@ public static class CtrlHelper
     public static bool CheckboxToggle(string label, in bool shown, Action<bool> toggle)
     {
         var temp = shown;
-        var toggled = ImGui.Checkbox(label, ref temp);
+        var toggled = Im.Checkbox(label, ref temp);
 
         if (toggled)
         {
@@ -65,29 +57,16 @@ public static class CtrlHelper
 
     public static bool ArrowToggle(string label, ref bool value)
     {
-        unsafe // temporary fix
-        {
-            var utf8Label = Encoding.UTF8.GetBytes(label + "\0");
+        if (Im.ArrowButton(label, value ? Direction.Down : Direction.Right))
+            value = !value;
 
-            fixed (byte* labelPtr = utf8Label)
-            {
-                bool toggled = ImGuiNative.ArrowButton(labelPtr, value ? ImGuiDir.Down : ImGuiDir.Right) != 0;
-
-                if (toggled)
-                    value = !value;
-
-                return value;
-            }
-        }
+        return value;
     }
 
 
     public static void AddHoverText(string text)
     {
-        if (ImGui.IsItemHovered())
-        {
-            ImGui.SetTooltip(text);
-        }
+        Im.Tooltip.OnHover(text);
     }
 
     public enum TextAlignment { Left, Center, Right };
@@ -97,16 +76,16 @@ public static class CtrlHelper
         {
             if (align == TextAlignment.Center)
             {
-                ImGui.Dummy(new System.Numerics.Vector2((ImGui.GetContentRegionAvail().X - ImGui.CalcTextSize(text).X) / 2, 0));
-                ImGui.SameLine();
+                Im.Dummy((Im.ContentRegion.Available.X - Im.Font.CalculateSize(text).X) / 2, 0);
+                Im.Line.Same();
             }
             else if (align == TextAlignment.Right)
             {
-                ImGui.Dummy(new System.Numerics.Vector2(ImGui.GetContentRegionAvail().X - ImGui.CalcTextSize(text).X, 0));
-                ImGui.SameLine();
+                Im.Dummy(Im.ContentRegion.Available.X - Im.Font.CalculateSize(text).X, 0);
+                Im.Line.Same();
             }
 
-            ImGui.Text(text);
+            Im.Text(text);
             if (!tooltip.IsNullOrWhitespace())
             {
                 AddHoverText(tooltip);
@@ -117,9 +96,9 @@ public static class CtrlHelper
     public static void LabelWithIcon(FontAwesomeIcon icon, string text, bool isSameLine = true)
     {
         if (isSameLine)
-            ImGui.SameLine();
+            Im.Line.Same();
         icon.Draw();
-        ImGui.SameLine();
-        ImGui.TextWrapped(text);
+        Im.Line.Same();
+        Im.TextWrapped(text);
     }
 }

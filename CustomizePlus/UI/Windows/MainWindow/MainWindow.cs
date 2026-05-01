@@ -8,7 +8,6 @@ using CustomizePlus.UI.Windows.MainWindow.Tabs;
 using CustomizePlus.UI.Windows.MainWindow.Tabs.Debug;
 using CustomizePlus.UI.Windows.MainWindow.Tabs.Profiles;
 using CustomizePlus.UI.Windows.MainWindow.Tabs.Templates;
-using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Colors;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
@@ -76,7 +75,7 @@ public class MainWindow : Dalamud.Interface.Windowing.Window, IDisposable
         SizeConstraints = new WindowSizeConstraints()
         {
             MinimumSize = new Vector2(700, 675),
-            MaximumSize = ImGui.GetIO().DisplaySize,
+            MaximumSize = Im.Viewport.Main.Size,
         };
 
         IsOpen = configuration.UISettings.OpenWindowAtStart;
@@ -89,7 +88,7 @@ public class MainWindow : Dalamud.Interface.Windowing.Window, IDisposable
 
     public override void Draw()
     {
-        var yPos = ImGui.GetCursorPosY();
+        var yPos = Im.Cursor.Position.Y;
 
         using (var disabled = Im.Disabled(_hookingService.RenderHookFailed || _hookingService.MovementHookFailed))
         {

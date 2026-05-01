@@ -4,7 +4,6 @@ using CustomizePlus.Configuration.Services;
 using CustomizePlus.Core.Helpers;
 using CustomizePlus.Core.Services;
 using CustomizePlus.Templates;
-using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.ImGuiNotification;
 using Dalamud.Interface.Utility;
@@ -62,10 +61,10 @@ public class SettingsTab
 
         DrawGeneralSettings();
 
-        ImGui.NewLine();
-        ImGui.NewLine();
-        ImGui.NewLine();
-        ImGui.NewLine();
+        Im.Line.New();
+        Im.Line.New();
+        Im.Line.New();
+        Im.Line.New();
 
         using (var child2 = Im.Child.Begin("SettingsChild"))
         {
@@ -107,7 +106,7 @@ public class SettingsTab
     #region Profile application settings
     private void DrawProfileApplicationSettings()
     {
-        var isShouldDraw = ImGui.CollapsingHeader("Profile Application");
+        var isShouldDraw = Im.Tree.Header("Profile Application");
 
         if (!isShouldDraw)
             return;
@@ -188,7 +187,7 @@ public class SettingsTab
     #region Chat Commands Settings
     private void DrawCommands()
     {
-        var isShouldDraw = ImGui.CollapsingHeader("Chat Commands");
+        var isShouldDraw = Im.Tree.Header("Chat Commands");
 
         if (!isShouldDraw)
             return;
@@ -213,7 +212,7 @@ public class SettingsTab
 
     private void DrawInterface()
     {
-        var isShouldDraw = ImGui.CollapsingHeader("Interface");
+        var isShouldDraw = Im.Tree.Header("Interface");
 
         if (!isShouldDraw)
             return;
@@ -322,7 +321,7 @@ public class SettingsTab
 
     private void DrawExternal()
     {
-        var isShouldDraw = ImGui.CollapsingHeader("Integrations");
+        var isShouldDraw = Im.Tree.Header("Integrations");
 
         if (!isShouldDraw)
             return;
@@ -349,15 +348,15 @@ public class SettingsTab
     // Advanced Settings
     private void DrawAdvancedSettings()
     {
-        var isShouldDraw = ImGui.CollapsingHeader("Advanced");
+        var isShouldDraw = Im.Tree.Header("Advanced");
 
         if (!isShouldDraw)
             return;
 
-        ImGui.NewLine();
+        Im.Line.New();
         CtrlHelper.LabelWithIcon(FontAwesomeIcon.ExclamationTriangle,
             "These are advanced settings. Enable them at your own risk.");
-        ImGui.NewLine();
+        Im.Line.New();
 
         DrawEnableRootPositionCheckbox();
         DrawDebugModeCheckbox();
@@ -390,30 +389,30 @@ public class SettingsTab
     #region Support Area
     private void DrawSupportButtons()
     {
-        var width = ImGui.CalcTextSize("Copy Support Info to Clipboard").X + ImGui.GetStyle().FramePadding.X * 2;
-        var xPos = ImGui.GetWindowWidth() - width;
+        var width = Im.Font.CalculateSize("Copy Support Info to Clipboard").X + Im.Style.FramePadding.X * 2;
+        var xPos = Im.Window.Width - width;
         // Respect the scroll bar width.
-        if (ImGui.GetScrollMaxY() > 0)
-            xPos -= ImGui.GetStyle().ScrollbarSize + ImGui.GetStyle().FramePadding.X;
+        if (Im.Scroll.MaximumY > 0)
+            xPos -= Im.Style.ScrollbarSize + Im.Style.FramePadding.X;
 
-        ImGui.SetCursorPos(new Vector2(xPos, 0));
+        Im.Cursor.Position = new Vector2(xPos, 0);
         DrawUrlButton("Join Discord for Support", "https://discord.gg/KvGJCCnG8t", DiscordColor, width,
             "Join Discord server run by community volunteers who can help you with your questions. Opens https://discord.gg/KvGJCCnG8t in your web browser.");
 
-        ImGui.SetCursorPos(new Vector2(xPos, ImGui.GetFrameHeightWithSpacing()));
+        Im.Cursor.Position = new Vector2(xPos, Im.Style.FrameHeightWithSpacing);
         DrawUrlButton("Support developer using Ko-fi", "https://ko-fi.com/risadev", DonateColor, width,
             "Any donations made are voluntary and treated as a token of gratitude for work done on Customize+. Opens https://ko-fi.com/risadev in your web browser.");
 
-        ImGui.SetCursorPos(new Vector2(xPos, 2 * ImGui.GetFrameHeightWithSpacing()));
-        if (ImGui.Button("Copy Support Info to Clipboard"))
+        Im.Cursor.Position = new Vector2(xPos, 2 * Im.Style.FrameHeightWithSpacing);
+        if (Im.Button("Copy Support Info to Clipboard"))
         {
             var text = _supportLogBuilderService.BuildSupportLog();
-            ImGui.SetClipboardText(text);
+            Im.Clipboard.Set(text);
             _messageService.NotificationMessage($"Copied Support Info to Clipboard.", NotificationType.Success, false);
         }
 
-        ImGui.SetCursorPos(new Vector2(xPos, 3 * ImGui.GetFrameHeightWithSpacing()));
-        if (ImGui.Button("Show update history", new Vector2(width, 0)))
+        Im.Cursor.Position = new Vector2(xPos, 3 * Im.Style.FrameHeightWithSpacing);
+        if (Im.Button("Show update history", new Vector2(width, 0)))
             _changeLog.Changelog.ForceOpen = true;
     }
 
@@ -421,7 +420,7 @@ public class SettingsTab
     private void DrawUrlButton(string text, string url, uint buttonColor, float width, string? description = null)
     {
         using var color = ImGuiColor.Button.Push(buttonColor);
-        if (ImGui.Button(text, new Vector2(width, 0)))
+        if (Im.Button(text, new Vector2(width, 0)))
             try
             {
                 var process = new ProcessStartInfo(url)

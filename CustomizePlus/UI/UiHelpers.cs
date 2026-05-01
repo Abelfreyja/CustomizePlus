@@ -14,7 +14,7 @@ public static class UiHelpers
 
     /// <summary> Draw default vertical space. </summary>
     public static void DefaultLineSpace()
-        => ImGui.Dummy(DefaultSpace);
+        => Im.Dummy(DefaultSpace);
 
     public static void SetupCommonSizes()
     {
@@ -36,9 +36,9 @@ public static class UiHelpers
 
     public static void DrawPropertyLabel(string text)
     {
-        ImGui.TableNextColumn();
-        ImGui.AlignTextToFramePadding();
-        ImGui.TextUnformatted(text);
+        Im.Table.NextColumn();
+        Im.Cursor.FrameAlign();
+        Im.Text(text);
     }
 
     public static bool DrawNamePopup(string label, ref string name)
@@ -47,8 +47,8 @@ public static class UiHelpers
         if (!popup)
             return false;
 
-        ImGui.InputTextWithHint("##name", "Name...", ref name, 128);
-        if (!ImGui.Button("Create") || name.Length == 0)
+        Im.Input.Text("##name", ref name, "Name...", maxLength: 128);
+        if (!Im.Button("Create") || name.Length == 0)
             return false;
 
         Im.Popup.CloseCurrent();

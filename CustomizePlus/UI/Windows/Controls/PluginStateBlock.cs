@@ -1,14 +1,12 @@
-﻿using Dalamud.Interface.Utility;
-using Dalamud.Interface;
-using Dalamud.Bindings.ImGui;
-using System.Numerics;
+﻿using CustomizePlus.Api;
+using CustomizePlus.Configuration.Data;
+using CustomizePlus.Core.Data;
+using CustomizePlus.Core.Helpers;
 using CustomizePlus.Core.Services;
 using CustomizePlus.Game.Services;
-using CustomizePlus.Configuration.Data;
 using CustomizePlus.UI.Windows.MainWindow.Tabs.Templates;
-using CustomizePlus.Core.Helpers;
-using CustomizePlus.Api;
-using CustomizePlus.Core.Data;
+using Dalamud.Interface;
+using Dalamud.Interface.Utility;
 
 namespace CustomizePlus.UI.Windows.Controls;
 
@@ -92,7 +90,7 @@ public class PluginStateBlock
 
         if (message != null)
         {
-            ImGui.SetCursorPos(new Vector2(ImGui.GetWindowContentRegionMax().X - ImGui.CalcTextSize(message).X - 30, yPos - ImGuiHelpers.GlobalScale));
+            Im.Cursor.Position = new Vector2(Im.Window.MaximumContentRegion.X - Im.Font.CalculateSize(message).X - 30, yPos - ImGuiHelpers.GlobalScale);
 
             var icon = FontAwesomeIcon.InfoCircle;
             var color = Constants.Colors.Normal;
@@ -108,9 +106,8 @@ public class PluginStateBlock
                     break;
             }
 
-            ImGui.PushStyleColor(ImGuiCol.Text, color);
+            using var textColor = ImGuiColor.Text.Push(color);
             CtrlHelper.LabelWithIcon(icon, message, false);
-            ImGui.PopStyleColor();
             if (hoverInfo != null)
                 CtrlHelper.AddHoverText(hoverInfo);
         }

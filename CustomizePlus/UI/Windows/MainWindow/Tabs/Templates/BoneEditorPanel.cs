@@ -16,6 +16,14 @@ namespace CustomizePlus.UI.Windows.MainWindow.Tabs.Templates;
 
 public class BoneEditorPanel
 {
+    private static readonly Vector4 AxisXHeaderColor = new(0.80f, 0.28f, 0.28f, 0.28f);
+    private static readonly Vector4 AxisYHeaderColor = new(0.35f, 0.72f, 0.35f, 0.24f);
+    private static readonly Vector4 AxisZHeaderColor = new(0.32f, 0.52f, 0.95f, 0.26f);
+
+    private static readonly Vector4 AxisXCellColor = new(0.80f, 0.28f, 0.28f, 0.08f);
+    private static readonly Vector4 AxisYCellColor = new(0.35f, 0.72f, 0.35f, 0.07f);
+    private static readonly Vector4 AxisZCellColor = new(0.32f, 0.52f, 0.95f, 0.08f);
+
     private readonly TemplateFileSystemSelector _templateFileSystemSelector;
     private readonly TemplateEditorManager _editorManager;
     private readonly PluginConfiguration _configuration;
@@ -306,7 +314,7 @@ public class BoneEditorPanel
 
                 ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.NoReorder | ImGuiTableColumnFlags.WidthStretch);
 
-                ImGui.TableHeadersRow();
+                DrawBoneEditorHeaderRow(showAllColumn, col1Label, col2Label, col3Label);
 
                 IEnumerable<EditRowParams> relevantModelBones = null!;
                 if (_editorManager.IsEditorActive && _editorManager.EditorProfile != null && _editorManager.EditorProfile.Armatures.Count > 0)
@@ -680,6 +688,36 @@ public class BoneEditorPanel
         return ImEx.Icon.Button(icon.Icon(), tooltip, disabled);
     }
 
+    private static void DrawBoneEditorHeaderRow(bool showAllColumn, string col1Label, string col2Label, string col3Label)
+    {
+        ImGui.TableNextRow(ImGuiTableRowFlags.Headers);
+
+        DrawHeaderCell("Bones");
+        DrawHeaderCell(col1Label, AxisXHeaderColor);
+        DrawHeaderCell(col2Label, AxisYHeaderColor);
+        DrawHeaderCell(col3Label, AxisZHeaderColor);
+
+        if (showAllColumn)
+            DrawHeaderCell("All");
+
+        DrawHeaderCell("Name");
+    }
+
+    private static void DrawHeaderCell(string label, Vector4? color = null)
+    {
+        ImGui.TableNextColumn();
+        if (color.HasValue)
+            ImGui.TableSetBgColor(ImGuiTableBgTarget.CellBg, ImGui.GetColorU32(color.Value));
+
+        ImGui.TableHeader(label);
+    }
+
+    private static void NextAxisCell(Vector4 color)
+    {
+        ImGui.TableNextColumn();
+        ImGui.TableSetBgColor(ImGuiTableBgTarget.CellBg, ImGui.GetColorU32(color));
+    }
+
     private bool FullBoneSlider(string label, ref Vector3 value)
     {
         var velocity = _editingAttribute == BoneAttribute.Rotation ? 0.1f : 0.001f;
@@ -768,9 +806,8 @@ public class BoneEditorPanel
             ImGui.SameLine();
             isFavorite = FavoriteButton(bone);
 
-            // adjusted logic, should only snapshot if there is a change in the value.
-            // change da X
-            ImGui.TableNextColumn();
+            // X
+            NextAxisCell(AxisXCellColor);
             float tempX = newVector.X;
             if (ImGui.IsItemActivated())
             {
@@ -792,8 +829,8 @@ public class BoneEditorPanel
                 }
             }
 
-            // change da Y
-            ImGui.TableNextColumn();
+            // Y
+            NextAxisCell(AxisYCellColor);
             float tempY = newVector.Y;
             if (ImGui.IsItemActivated())
             {
@@ -815,8 +852,8 @@ public class BoneEditorPanel
                 }
             }
 
-            // change da Z
-            ImGui.TableNextColumn();
+            // Z
+            NextAxisCell(AxisZCellColor);
             float tempZ = newVector.Z;
             if (ImGui.IsItemActivated())
             {
@@ -998,7 +1035,7 @@ public class BoneEditorPanel
 
         using (var disabled = Im.Disabled(!_isUnlocked || !isChildScaleIndependent))
         {
-            ImGui.TableNextColumn();
+            NextAxisCell(AxisXCellColor);
             float tempChildX = childScale.X;
             if (ImGui.IsItemActivated())
             {
@@ -1020,7 +1057,7 @@ public class BoneEditorPanel
                 }
             }
 
-            ImGui.TableNextColumn();
+            NextAxisCell(AxisYCellColor);
             float tempChildY = childScale.Y;
             if (ImGui.IsItemActivated())
             {
@@ -1042,7 +1079,7 @@ public class BoneEditorPanel
                 }
             }
 
-            ImGui.TableNextColumn();
+            NextAxisCell(AxisZCellColor);
             float tempChildZ = childScale.Z;
             if (ImGui.IsItemActivated())
             {

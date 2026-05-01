@@ -1,15 +1,13 @@
-using Dalamud.Interface.Utility;
 using Dalamud.Interface;
-using Dalamud.Bindings.ImGui;
-using System;
-using System.Linq;
-using ImSharp;
-using System.Numerics;
+using Dalamud.Interface.Utility;
 
 namespace CustomizePlus.UI.Windows.MainWindow.Tabs;
 
 public static class HeaderDrawer
 {
+    private static float ButtonWidth
+        => Im.Style.FrameHeight + 16 * ImGuiHelpers.GlobalScale;
+
     public struct Button
     {
         public static readonly Button Invisible = new()
@@ -30,7 +28,7 @@ public static class HeaderDrawer
         public Button()
         {
             Visible = true;
-            Width = ImGui.GetFrameHeightWithSpacing();
+            Width = ButtonWidth;
             BorderColor = ColorId.HeaderButtons.Value();
             TextColor = ColorId.HeaderButtons.Value();
             Disabled = false;
@@ -43,7 +41,7 @@ public static class HeaderDrawer
 
             using var color = ImGuiColor.Border.Push(BorderColor)
                 .Push(ImGuiColor.Text, TextColor, TextColor != 0);
-            if (UiHelpers.DrawIconButton(Icon, new Vector2(Width, ImGui.GetFrameHeight()), string.Empty, Disabled))
+            if (UiHelpers.DrawIconButton(Icon, new Vector2(Width, Im.Style.FrameHeight), string.Empty, Disabled))
                 OnClick?.Invoke();
             color.Pop();
             UiHelpers.DrawHoverTooltip(Description);
@@ -75,25 +73,25 @@ public static class HeaderDrawer
         foreach (var button in buttons.Take(leftButtons).Where(b => b.Visible))
         {
             button.Draw();
-            ImGui.SameLine();
+            Im.Line.Same();
             leftButtonSize += button.Width;
         }
 
         var rightButtonSize = buttons.Length > leftButtons ? buttons.Skip(leftButtons).Where(b => b.Visible).Select(b => b.Width).Sum() : 0f;
-        var midSize = ImGui.GetContentRegionAvail().X - rightButtonSize - ImGuiHelpers.GlobalScale;
+        var midSize = Im.ContentRegion.Available.X - rightButtonSize - ImGuiHelpers.GlobalScale;
 
         style.Pop();
         style.Push(ImStyleDouble.ButtonTextAlign, new Vector2(0.5f + (rightButtonSize - leftButtonSize) / midSize, 0.5f));
         if (textColor != 0)
-            UiHelpers.DrawColoredButton(text, new Vector2(midSize, ImGui.GetFrameHeight()), frameColor, textColor);
+            UiHelpers.DrawColoredButton(text, new Vector2(midSize, Im.Style.FrameHeight), frameColor, textColor);
         else
-            UiHelpers.DrawColoredButton(text, new Vector2(midSize, ImGui.GetFrameHeight()), frameColor);
+            UiHelpers.DrawColoredButton(text, new Vector2(midSize, Im.Style.FrameHeight), frameColor);
         style.Pop();
         style.Push(ImStyleSingle.FrameBorderThickness, ImGuiHelpers.GlobalScale);
 
         foreach (var button in buttons.Skip(leftButtons).Where(b => b.Visible))
         {
-            ImGui.SameLine();
+            Im.Line.Same();
             button.Draw();
         }
     }

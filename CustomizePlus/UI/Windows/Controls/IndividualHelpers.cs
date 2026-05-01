@@ -1,5 +1,4 @@
 ﻿using Dalamud.Game.ClientState.Objects.Enums;
-using Dalamud.Bindings.ImGui;
 
 namespace CustomizePlus.UI.Windows.Controls;
 
@@ -8,7 +7,7 @@ public static class IndividualHelpers
     public static bool DrawObjectKindCombo(float width, ObjectKind current, out ObjectKind result, IEnumerable<ObjectKind> kinds)
     {
         result = current;
-        ImGui.SetNextItemWidth(width);
+        Im.Item.SetNextWidth(width);
         using var combo = Im.Combo.Begin("##objectKind", current.ToString());
         if (!combo)
             return false;
@@ -16,7 +15,7 @@ public static class IndividualHelpers
         var changed = false;
         foreach (var kind in kinds)
         {
-            if (!ImGui.Selectable(kind.ToString(), kind == current))
+            if (!Im.Selectable(kind.ToString(), kind == current))
                 continue;
 
             result = kind;

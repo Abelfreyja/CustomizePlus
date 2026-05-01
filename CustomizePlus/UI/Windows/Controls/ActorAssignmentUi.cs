@@ -1,12 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using Dalamud.Game.ClientState.Objects.Enums;
-using Dalamud.Bindings.ImGui;
+﻿using Dalamud.Game.ClientState.Objects.Enums;
 using Penumbra.GameData.Actors;
 using Penumbra.GameData.DataContainers;
 using Penumbra.GameData.Gui;
 using Penumbra.String;
+using System.Threading.Tasks;
 
 namespace CustomizePlus.UI.Windows.Controls;
 
@@ -62,8 +59,8 @@ public class ActorAssignmentUi
         if (!_ready)
             return;
 
-        ImGui.SetNextItemWidth(width);
-        if (ImGui.InputTextWithHint("##NewCharacter", "Character Name...", ref _newCharacterName, 32))
+        Im.Item.SetNextWidth(width);
+        if (Im.Input.Text("##NewCharacter", ref _newCharacterName, "Character Name...", maxLength: 32))
             UpdateIdentifiersInternal();
     }
 

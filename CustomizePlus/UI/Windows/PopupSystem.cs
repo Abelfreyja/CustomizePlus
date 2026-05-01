@@ -1,6 +1,5 @@
 ﻿using CustomizePlus.Configuration.Data;
 using CustomizePlus.Configuration.Services;
-using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Utility;
 
 namespace CustomizePlus.UI.Windows;
@@ -68,7 +67,7 @@ public partial class PopupSystem
 
     public void Draw()
     {
-        var viewportSize = ImGui.GetWindowViewport().Size;
+        var viewportSize = Im.Window.Viewport.Size;
 
         foreach (var popup in _popups.Values)
         {
@@ -96,8 +95,8 @@ public partial class PopupSystem
                 MathF.Max(minWidth, viewportSize.X / xDiv),
                 MathF.Max(minHeight, viewportSize.Y / yDiv));
 
-            ImGui.SetNextWindowSize(size, ImGuiCond.Appearing);
-            ImGui.SetNextWindowPos(viewportSize / 2, ImGuiCond.Always, new Vector2(0.5f));
+            Im.Window.SetNextSize(size, Condition.Appearing);
+            Im.Window.SetNextPosition(viewportSize / 2, Condition.Always, new Vector2(0.5f));
             using var popupWindow = Im.Popup.BeginModal(popup.ImGuiLabel, PopupWindowFlags);
             if (!popupWindow)
             {
@@ -106,17 +105,17 @@ public partial class PopupSystem
                 continue;
             }
 
-            ImGui.SetCursorPosY(ImGui.GetCursorPosY() + ImGui.GetStyle().ItemSpacing.Y);
+            Im.Cursor.Y += Im.Style.ItemSpacing.Y;
             Im.TextWrapped(popup.Text);
-            ImGui.Spacing();
-            ImGui.Separator();
-            ImGui.Spacing();
+            Im.Line.Spacing();
+            Im.Separator();
+            Im.Line.Spacing();
 
             var buttonWidth = new Vector2(150 * ImGuiHelpers.GlobalScale, 0);
-            var yPos = ImGui.GetWindowHeight() - ImGui.GetFrameHeight() - ImGui.GetStyle().WindowPadding.Y;
-            var xPos = (ImGui.GetWindowWidth() - ImGui.GetStyle().ItemSpacing.X - buttonWidth.X) / 2;
-            ImGui.SetCursorPos(new Vector2(xPos, yPos));
-            if (ImGui.Button("OK", buttonWidth))
+            var yPos = Im.Window.Height - Im.Style.FrameHeight - Im.Style.WindowPadding.Y;
+            var xPos = (Im.Window.Width - Im.Style.ItemSpacing.X - buttonWidth.X) / 2;
+            Im.Cursor.Position = new Vector2(xPos, yPos);
+            if (Im.Button("OK", buttonWidth))
             {
                 Im.Popup.CloseCurrent();
                 _displayedPopups.RemoveAt(i--);
