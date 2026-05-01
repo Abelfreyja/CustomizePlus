@@ -9,14 +9,14 @@ using CustomizePlus.UI.Windows.MainWindow.Tabs.Debug;
 using CustomizePlus.UI.Windows.MainWindow.Tabs.Profiles;
 using CustomizePlus.UI.Windows.MainWindow.Tabs.Templates;
 using Dalamud.Interface.Colors;
-using Dalamud.Interface.Windowing;
-using Dalamud.Plugin;
 using ECommonsLite.ImGuiMethods;
 using ECommonsLite.Schedulers;
+using LunaWindow = Luna.Window;
+using WindowSizeConstraints = Dalamud.Interface.Windowing.WindowSizeConstraints;
 
 namespace CustomizePlus.UI.Windows.MainWindow;
 
-public class MainWindow : Dalamud.Interface.Windowing.Window, IDisposable
+public class MainWindow : LunaWindow, IDisposable
 {
     private readonly SettingsTab _settingsTab;
     private readonly TemplatesTab _templatesTab;
@@ -41,7 +41,6 @@ public class MainWindow : Dalamud.Interface.Windowing.Window, IDisposable
     private Action? _actionAfterTabSwitch = null;
 
     public MainWindow(
-        IDalamudPluginInterface pluginInterface,
         SettingsTab settingsTab,
         TemplatesTab templatesTab,
         ProfilesTab profilesTab,

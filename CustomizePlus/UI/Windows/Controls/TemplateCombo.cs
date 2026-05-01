@@ -76,7 +76,7 @@ public abstract class TemplateComboBase : SimpleFilterCombo<Tuple<Template, stri
     {
         _currentTemplate = currentTemplate;
         var name = label ?? "Select Template Here...";
-        var ret = base.Draw("##template", name, string.Empty, width, out var selection);
+        var ret = base.Draw("##template"u8, name, string.Empty, width, out var selection);
         CurrentSelection = selection?.Item;
 
         _currentTemplate = null;

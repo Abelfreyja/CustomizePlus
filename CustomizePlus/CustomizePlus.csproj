@@ -35,6 +35,9 @@
     <ProjectReference Include="..\CustomizePlus.GameData\CustomizePlus.GameData.csproj" />
     <ProjectReference Include="..\submodules\ECommonsLite\ECommonsLite\ECommonsLite.csproj" />
     <ProjectReference Include="..\submodules\Luna\Luna\Luna.csproj" />
+    <ProjectReference Include="..\submodules\Luna\Luna.Generators\Luna.Generators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>

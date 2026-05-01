@@ -8,7 +8,7 @@ using Dalamud.Interface;
 using Dalamud.Interface.ImGuiNotification;
 using Dalamud.Interface.Utility;
 using Dalamud.Plugin;
-using System.Diagnostics;
+using Dalamud.Utility;
 
 namespace CustomizePlus.UI.Windows.MainWindow.Tabs;
 
@@ -55,7 +55,7 @@ public class SettingsTab
     public void Draw()
     {
         UiHelpers.SetupCommonSizes();
-        using var child = Im.Child.Begin("MainWindowChild");
+        using var child = Im.Child.Begin("MainWindowChild"u8);
         if (!child)
             return;
 
@@ -66,7 +66,7 @@ public class SettingsTab
         Im.Line.New();
         Im.Line.New();
 
-        using (var child2 = Im.Child.Begin("SettingsChild"))
+        using (var child2 = Im.Child.Begin("SettingsChild"u8))
         {
             DrawProfileApplicationSettings();
             DrawInterface();
@@ -106,7 +106,7 @@ public class SettingsTab
     #region Profile application settings
     private void DrawProfileApplicationSettings()
     {
-        var isShouldDraw = Im.Tree.Header("Profile Application");
+        var isShouldDraw = Im.Tree.Header("Profile Application"u8);
 
         if (!isShouldDraw)
             return;
@@ -187,7 +187,7 @@ public class SettingsTab
     #region Chat Commands Settings
     private void DrawCommands()
     {
-        var isShouldDraw = Im.Tree.Header("Chat Commands");
+        var isShouldDraw = Im.Tree.Header("Chat Commands"u8);
 
         if (!isShouldDraw)
             return;
@@ -212,7 +212,7 @@ public class SettingsTab
 
     private void DrawInterface()
     {
-        var isShouldDraw = Im.Tree.Header("Interface");
+        var isShouldDraw = Im.Tree.Header("Interface"u8);
 
         if (!isShouldDraw)
             return;
@@ -232,8 +232,8 @@ public class SettingsTab
 
         UiHelpers.DefaultLineSpace();
 
-        if (KeySelector.DoubleModifier("Template Deletion Modifier",
-            "A modifier you need to hold while clicking the Delete Template button for it to take effect.", 100 * ImGuiHelpers.GlobalScale,
+        if (KeySelector.DoubleModifier("Template Deletion Modifier"u8,
+            "A modifier you need to hold while clicking the Delete Template button for it to take effect."u8, 100 * ImGuiHelpers.GlobalScale,
             _configuration.UISettings.DeleteTemplateModifier, v => _configuration.UISettings.DeleteTemplateModifier = v))
             _configurationService.Save(PluginConfigurationChange.Interface);
     }
@@ -321,7 +321,7 @@ public class SettingsTab
 
     private void DrawExternal()
     {
-        var isShouldDraw = Im.Tree.Header("Integrations");
+        var isShouldDraw = Im.Tree.Header("Integrations"u8);
 
         if (!isShouldDraw)
             return;
@@ -348,7 +348,7 @@ public class SettingsTab
     // Advanced Settings
     private void DrawAdvancedSettings()
     {
-        var isShouldDraw = Im.Tree.Header("Advanced");
+        var isShouldDraw = Im.Tree.Header("Advanced"u8);
 
         if (!isShouldDraw)
             return;
@@ -389,7 +389,7 @@ public class SettingsTab
     #region Support Area
     private void DrawSupportButtons()
     {
-        var width = Im.Font.CalculateSize("Copy Support Info to Clipboard").X + Im.Style.FramePadding.X * 2;
+        var width = Im.Font.CalculateSize("Copy Support Info to Clipboard"u8).X + Im.Style.FramePadding.X * 2;
         var xPos = Im.Window.Width - width;
         // Respect the scroll bar width.
         if (Im.Scroll.MaximumY > 0)
@@ -404,7 +404,7 @@ public class SettingsTab
             "Any donations made are voluntary and treated as a token of gratitude for work done on Customize+. Opens https://ko-fi.com/risadev in your web browser.");
 
         Im.Cursor.Position = new Vector2(xPos, 2 * Im.Style.FrameHeightWithSpacing);
-        if (Im.Button("Copy Support Info to Clipboard"))
+        if (Im.Button("Copy Support Info to Clipboard"u8))
         {
             var text = _supportLogBuilderService.BuildSupportLog();
             Im.Clipboard.Set(text);
@@ -412,7 +412,7 @@ public class SettingsTab
         }
 
         Im.Cursor.Position = new Vector2(xPos, 3 * Im.Style.FrameHeightWithSpacing);
-        if (Im.Button("Show update history", new Vector2(width, 0)))
+        if (Im.Button("Show update history"u8, new Vector2(width, 0)))
             _changeLog.Changelog.ForceOpen = true;
     }
 
@@ -423,11 +423,7 @@ public class SettingsTab
         if (Im.Button(text, new Vector2(width, 0)))
             try
             {
-                var process = new ProcessStartInfo(url)
-                {
-                    UseShellExecute = true,
-                };
-                Process.Start(process);
+                Util.OpenLink(url);
             }
             catch
             {

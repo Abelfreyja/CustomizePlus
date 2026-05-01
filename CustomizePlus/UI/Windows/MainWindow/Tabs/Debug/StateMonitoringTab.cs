@@ -165,7 +165,7 @@ public class StateMonitoringTab
             foreach (var armature in profile.Armatures)
                 DrawSingleArmature($"profile-{profile.UniqueId}", armature);
         else
-            Im.Text("No armatures");
+            Im.Text("No armatures"u8);
     }
 
     private void DrawSingleTemplate(string prefix, Template template, string? additionalText = null)

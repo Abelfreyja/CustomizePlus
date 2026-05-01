@@ -143,11 +143,11 @@ public class BoneEditorPanel
 
             Im.Separator();
 
-            var isShouldDraw = Im.Tree.Header("Change preview character");
+            var isShouldDraw = Im.Tree.Header("Change preview character"u8);
 
             if (isShouldDraw)
             {
-                var width = new Vector2(Im.ContentRegion.Available.X - Im.Font.CalculateSize("Limit to my creatures").X - 68, 0);
+                var width = new Vector2(Im.ContentRegion.Available.X - Im.Font.CalculateSize("Limit to my creatures"u8).X - 68, 0);
 
                 using (var disabled = Im.Disabled(!IsEditorActive || IsEditorPaused))
                 {
@@ -186,25 +186,25 @@ public class BoneEditorPanel
                             _editorManager.ChangeEditorCharacter(_actorAssignmentUi.NpcIdentifier);
                     }
                     else
-                        Im.Text("Incognito active");
+                        Im.Text("Incognito active"u8);
                 }
             }
 
             Im.Separator();
 
-            using (var table = Im.Table.Begin("BoneEditorMenu", 2))
+            using (var table = Im.Table.Begin("BoneEditorMenu"u8, 2))
             {
                 if (!table)
                     return;
 
-                table.SetupColumn("Attributes", TableColumnFlags.WidthFixed);
-                table.SetupColumn("Space", TableColumnFlags.WidthStretch);
+                table.SetupColumn("Attributes"u8, TableColumnFlags.WidthFixed);
+                table.SetupColumn("Space"u8, TableColumnFlags.WidthStretch);
 
                 Im.Table.NextRow();
                 Im.Table.NextColumn();
 
                 var modeChanged = false;
-                if (Im.RadioButton("Position", _editingAttribute == BoneAttribute.Position))
+                if (Im.RadioButton("Position"u8, _editingAttribute == BoneAttribute.Position))
                 {
                     _editingAttribute = BoneAttribute.Position;
                     modeChanged = true;
@@ -212,7 +212,7 @@ public class BoneEditorPanel
                 CtrlHelper.AddHoverText($"May have unintended effects. Edit at your own risk!");
 
                 Im.Line.Same();
-                if (Im.RadioButton("Rotation", _editingAttribute == BoneAttribute.Rotation))
+                if (Im.RadioButton("Rotation"u8, _editingAttribute == BoneAttribute.Rotation))
                 {
                     _editingAttribute = BoneAttribute.Rotation;
                     modeChanged = true;
@@ -220,7 +220,7 @@ public class BoneEditorPanel
                 CtrlHelper.AddHoverText($"May have unintended effects. Edit at your own risk!");
 
                 Im.Line.Same();
-                if (Im.RadioButton("Scale", _editingAttribute == BoneAttribute.Scale))
+                if (Im.RadioButton("Scale"u8, _editingAttribute == BoneAttribute.Scale))
                 {
                     _editingAttribute = BoneAttribute.Scale;
                     modeChanged = true;
@@ -228,7 +228,7 @@ public class BoneEditorPanel
 
                 Im.Line.Same();
                 Im.Item.SetNextWidth(200 * ImGuiHelpers.GlobalScale);
-                Im.Input.Text("##BoneSearch", ref _boneSearch, "Search bones...", maxLength: 64);
+                Im.Input.Text("##BoneSearch"u8, ref _boneSearch, "Search bones..."u8, maxLength: 64);
 
                 Im.Line.Same();
                 if (DrawIconButton("UndoBone", FontAwesomeIcon.Undo, "Undo", _undoStack.Count == 0))
@@ -282,7 +282,7 @@ public class BoneEditorPanel
 
                 Im.Table.NextColumn();
 
-                if (Im.Slider("##Precision", ref _precision, $"{_precision} Place{(_precision == 1 ? "" : "s")}", 0, 6))
+                if (Im.Slider("##Precision"u8, ref _precision, $"{_precision} Place{(_precision == 1 ? "" : "s")}", 0, 6))
                 {
                     _configuration.EditorConfiguration.EditorValuesPrecision = _precision;
                     _configurationService.Save(PluginConfigurationChange.Editor);
@@ -297,7 +297,7 @@ public class BoneEditorPanel
 
             using var tableSpacing = Im.Style.PushY(ImStyleDouble.ItemSpacing, 0);
             using (var table = Im.Table.Begin(
-                "BoneEditorContents",
+                "BoneEditorContents"u8,
                 showAllColumn ? 6 : 5,
                 TableFlags.BordersOuterHorizontal | TableFlags.BordersVertical | TableFlags.ScrollY | TableFlags.SizingStretchSame,
                 tableSize))
@@ -309,15 +309,15 @@ public class BoneEditorPanel
                 var col2Label = _editingAttribute == BoneAttribute.Rotation ? "Pitch" : "Y";
                 var col3Label = _editingAttribute == BoneAttribute.Rotation ? "Yaw" : "Z";
 
-                table.SetupColumn("Bones", TableColumnFlags.NoReorder | TableColumnFlags.WidthFixed, 6 * CtrlHelper.IconButtonWidth);
+                table.SetupColumn("Bones"u8, TableColumnFlags.NoReorder | TableColumnFlags.WidthFixed, 6 * CtrlHelper.IconButtonWidth);
 
                 table.SetupColumn($"{col1Label}", TableColumnFlags.NoReorder | TableColumnFlags.WidthStretch);
                 table.SetupColumn($"{col2Label}", TableColumnFlags.NoReorder | TableColumnFlags.WidthStretch);
                 table.SetupColumn($"{col3Label}", TableColumnFlags.NoReorder | TableColumnFlags.WidthStretch);
                 if (showAllColumn)
-                    table.SetupColumn("All", TableColumnFlags.NoReorder | TableColumnFlags.WidthStretch);
+                    table.SetupColumn("All"u8, TableColumnFlags.NoReorder | TableColumnFlags.WidthStretch);
 
-                table.SetupColumn("Name", TableColumnFlags.NoReorder | TableColumnFlags.WidthStretch);
+                table.SetupColumn("Name"u8, TableColumnFlags.NoReorder | TableColumnFlags.WidthStretch);
 
                 DrawBoneEditorHeaderRow(showAllColumn, col1Label, col2Label, col3Label);
 
@@ -361,7 +361,7 @@ public class BoneEditorPanel
                     else
                         Im.Table.NextRow();
 
-                    using var id = Im.Id.Push(favoritesHeaderId);
+                    using var id = Im.Id.Push("FavoritesHeader"u8);
                     Im.Table.NextColumn();
                     CtrlHelper.ArrowToggle($"##{favoritesHeaderId}", ref expanded);
                     Im.Line.Same();
@@ -440,7 +440,7 @@ public class BoneEditorPanel
                         Im.Table.NextRow();
                     }
 
-                    using var id = Im.Id.Push(boneGroup.Key.ToString());
+                    using var id = Im.Id.Push($"{boneGroup.Key}");
                     Im.Table.NextColumn();
 
                     CtrlHelper.ArrowToggle($"##{boneGroup.Key}", ref expanded);
@@ -464,7 +464,7 @@ public class BoneEditorPanel
                         {
                             using (var disabled = Im.Disabled(!_isUnlocked))
                             {
-                                if (Im.Menu.Item("Copy Group"))
+                                if (Im.Menu.Item("Copy Group"u8))
                                 {
                                     try
                                     {
@@ -485,7 +485,7 @@ public class BoneEditorPanel
                                     }
                                 }
 
-                                if (Im.Menu.Item("Import Group"))
+                                if (Im.Menu.Item("Import Group"u8))
                                 {
                                     var clipboardText = Im.Clipboard.GetUtf16();
                                     if (!string.IsNullOrEmpty(clipboardText))
@@ -527,7 +527,7 @@ public class BoneEditorPanel
 
     private void DrawEditorConfirmationPopup()
     {
-        const string popupName = "Unsaved Changes##SavePopup";
+        ReadOnlySpan<byte> popupName = "Unsaved Changes##SavePopup"u8;
         const WindowFlags popupFlags = WindowFlags.NoResize | WindowFlags.NoMove | WindowFlags.NoSavedSettings;
 
         if (_openSavePopup)
@@ -555,7 +555,7 @@ public class BoneEditorPanel
             return;
 
         Im.Cursor.Y = Im.Cursor.Y + style.ItemSpacing.Y;
-        Im.TextWrapped("You have unsaved changes in current template, what would you like to do?");
+        Im.TextWrapped("You have unsaved changes in current template, what would you like to do?"u8);
         Im.Line.Spacing();
         Im.Separator();
         Im.Line.Spacing();
@@ -563,7 +563,7 @@ public class BoneEditorPanel
         var exitedEditor = false;
         Im.Cursor.X = (Im.Window.Width - totalButtonsWidth) / 2;
 
-        if (Im.Button("Save", buttonSize))
+        if (Im.Button("Save"u8, buttonSize))
         {
             _editorManager.SaveChangesAndDisableEditor();
             exitedEditor = true;
@@ -571,7 +571,7 @@ public class BoneEditorPanel
         }
 
         Im.Line.Same();
-        if (Im.Button("Save as a copy", buttonSize))
+        if (Im.Button("Save as a copy"u8, buttonSize))
         {
             _editorManager.SaveChangesAndDisableEditor(true);
             exitedEditor = true;
@@ -579,7 +579,7 @@ public class BoneEditorPanel
         }
 
         Im.Line.Same();
-        if (Im.Button("Do not save", buttonSize))
+        if (Im.Button("Do not save"u8, buttonSize))
         {
             _editorManager.DisableEditor();
             exitedEditor = true;
@@ -587,7 +587,7 @@ public class BoneEditorPanel
         }
 
         Im.Line.Same();
-        if (Im.Button("Keep editing", buttonSize))
+        if (Im.Button("Keep editing"u8, buttonSize))
         {
             Im.Popup.CloseCurrent();
         }

@@ -1,10 +1,12 @@
-﻿using CustomizePlus.Configuration.Data;
+using CustomizePlus.Configuration.Data;
 using CustomizePlus.Configuration.Services;
 using Dalamud.Interface.Utility;
+using LunaWindow = Luna.Window;
+using WindowSizeConstraints = Dalamud.Interface.Windowing.WindowSizeConstraints;
 
 namespace CustomizePlus.UI.Windows;
 
-public partial class PopupSystem
+public partial class PopupSystem : LunaWindow
 {
     private const WindowFlags PopupWindowFlags = WindowFlags.NoResize | WindowFlags.NoMove | WindowFlags.NoSavedSettings;
 
@@ -16,10 +18,31 @@ public partial class PopupSystem
     private readonly List<PopupData> _displayedPopups = new();
 
     public PopupSystem(Logger logger, PluginConfiguration configuration, ConfigurationService configurationService)
+        : base("Customize+ Popups###CPlusPopupSystem",
+            WindowFlags.NoCollapse
+          | WindowFlags.NoDecoration
+          | WindowFlags.NoBackground
+          | WindowFlags.NoMove
+          | WindowFlags.NoInputs
+          | WindowFlags.NoNavFocus
+          | WindowFlags.NoFocusOnAppearing
+          | WindowFlags.NoBringToFrontOnFocus
+          | WindowFlags.NoDocking
+          | WindowFlags.NoTitleBar,
+            true)
     {
         _logger = logger;
         _configuration = configuration;
         _configurationService = configurationService;
+
+        IsOpen = true;
+        RespectCloseHotkey = false;
+        Collapsed = false;
+        SizeConstraints = new WindowSizeConstraints
+        {
+            MinimumSize = Vector2.Zero,
+            MaximumSize = Vector2.Zero,
+        };
 
         RegisterMessages();
     }
@@ -43,9 +66,7 @@ public partial class PopupSystem
         _logger.Debug($"Popup \"{name}\" registered");
     }
 
-    /// <summary>
-    /// Show popup. Returns false if popup will not be shown for some reason. (can only be shown once or awaiting to be shown)
-    /// </summary>
+    /// <summary> show popup if it is registered and not already queued or displayed </summary>
     public bool ShowPopup(string name)
     {
         name = name.ToLowerInvariant();
@@ -65,9 +86,12 @@ public partial class PopupSystem
         return true;
     }
 
-    public void Draw()
+    public override void PreOpenCheck()
+        => IsOpen = true;
+
+    public override void Draw()
     {
-        var viewportSize = Im.Window.Viewport.Size;
+        var viewport = Im.Viewport.Main;
 
         foreach (var popup in _popups.Values)
         {
@@ -92,11 +116,11 @@ public partial class PopupSystem
             var minWidth = 360 * ImGuiHelpers.GlobalScale;
             var minHeight = 150 * ImGuiHelpers.GlobalScale;
             var size = new Vector2(
-                MathF.Max(minWidth, viewportSize.X / xDiv),
-                MathF.Max(minHeight, viewportSize.Y / yDiv));
+                MathF.Max(minWidth, viewport.Size.X / xDiv),
+                MathF.Max(minHeight, viewport.Size.Y / yDiv));
 
             Im.Window.SetNextSize(size, Condition.Appearing);
-            Im.Window.SetNextPosition(viewportSize / 2, Condition.Always, new Vector2(0.5f));
+            Im.Window.SetNextPosition(viewport.Center, Condition.Always, new Vector2(0.5f));
             using var popupWindow = Im.Popup.BeginModal(popup.ImGuiLabel, PopupWindowFlags);
             if (!popupWindow)
             {
@@ -115,7 +139,7 @@ public partial class PopupSystem
             var yPos = Im.Window.Height - Im.Style.FrameHeight - Im.Style.WindowPadding.Y;
             var xPos = (Im.Window.Width - Im.Style.ItemSpacing.X - buttonWidth.X) / 2;
             Im.Cursor.Position = new Vector2(xPos, yPos);
-            if (Im.Button("OK", buttonWidth))
+            if (Im.Button("OK"u8, buttonWidth))
             {
                 Im.Popup.CloseCurrent();
                 _displayedPopups.RemoveAt(i--);

@@ -1,20 +1,18 @@
-﻿using Dalamud.Interface;
-using Dalamud.Interface.Windowing;
-using System;
-using CustomizePlus.Configuration.Data;
-using CustomizePlus.UI.Windows.MainWindow;
+﻿using CustomizePlus.Configuration.Data;
 using CustomizePlus.UI.Windows;
+using CustomizePlus.UI.Windows.MainWindow;
+using Dalamud.Interface;
 
 namespace CustomizePlus.UI;
 
-public class CPlusWindowSystem : IDisposable
+public class CPlusWindowSystem : IDisposable, IUiService
 {
-    private readonly Dalamud.Interface.Windowing.WindowSystem _windowSystem = new("Customize+");
     private readonly IUiBuilder _uiBuilder;
     private readonly MainWindow _mainWindow;
-    private readonly PopupSystem _popupSystem;
+    private readonly WindowSystem _windowSystem;
 
     public CPlusWindowSystem(
+        WindowSystem windowSystem,
         IUiBuilder uiBuilder,
         MainWindow mainWindow,
         CPlusChangeLog changelog,
@@ -23,11 +21,11 @@ public class CPlusWindowSystem : IDisposable
     {
         _uiBuilder = uiBuilder;
         _mainWindow = mainWindow;
-        _popupSystem = popupSystem;
+        _windowSystem = windowSystem;
 
         _windowSystem.AddWindow(mainWindow);
         _windowSystem.AddWindow(changelog.Changelog);
-        _uiBuilder.Draw += OnDraw;
+        _windowSystem.AddWindow(popupSystem);
         _uiBuilder.OpenMainUi += _mainWindow.Toggle;
         _uiBuilder.OpenConfigUi += _mainWindow.OpenSettings;
 
@@ -36,15 +34,8 @@ public class CPlusWindowSystem : IDisposable
         _uiBuilder.DisableUserUiHide = !configuration.UISettings.HideWindowWhenUiHidden;
     }
 
-    private void OnDraw()
-    {
-        _windowSystem.Draw();
-        _popupSystem.Draw();
-    }
-
     public void Dispose()
     {
-        _uiBuilder.Draw -= OnDraw;
         _uiBuilder.OpenMainUi -= _mainWindow.Toggle;
         _uiBuilder.OpenConfigUi -= _mainWindow.OpenSettings;
     }

@@ -1,4 +1,4 @@
-﻿using Dalamud.Game.ClientState.Objects.Enums;
+using Dalamud.Game.ClientState.Objects.Enums;
 
 namespace CustomizePlus.UI.Windows.Controls;
 
@@ -8,14 +8,14 @@ public static class IndividualHelpers
     {
         result = current;
         Im.Item.SetNextWidth(width);
-        using var combo = Im.Combo.Begin("##objectKind", current.ToString());
+        using var combo = Im.Combo.Begin("##objectKind"u8, $"{current}");
         if (!combo)
             return false;
 
         var changed = false;
         foreach (var kind in kinds)
         {
-            if (!Im.Selectable(kind.ToString(), kind == current))
+            if (!Im.Selectable($"{kind}", kind == current))
                 continue;
 
             result = kind;

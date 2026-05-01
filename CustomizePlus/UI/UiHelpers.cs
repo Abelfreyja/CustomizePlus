@@ -46,8 +46,8 @@ public static class UiHelpers
         if (!popup)
             return false;
 
-        Im.Input.Text("##name", ref name, "Name...", maxLength: 128);
-        if (!Im.Button("Create") || name.Length == 0)
+        Im.Input.Text("##name"u8, ref name, "Name..."u8, maxLength: 128);
+        if (!Im.Button("Create"u8) || name.Length == 0)
             return false;
 
         Im.Popup.CloseCurrent();

@@ -1,4 +1,4 @@
-﻿using Dalamud.Game.ClientState.Objects.Enums;
+using Dalamud.Game.ClientState.Objects.Enums;
 using Penumbra.GameData.Actors;
 using Penumbra.GameData.DataContainers;
 using Penumbra.GameData.Gui;
@@ -60,7 +60,7 @@ public class ActorAssignmentUi
             return;
 
         Im.Item.SetNextWidth(width);
-        if (Im.Input.Text("##NewCharacter", ref _newCharacterName, "Character Name...", maxLength: 32))
+        if (Im.Input.Text("##NewCharacter"u8, ref _newCharacterName, "Character Name..."u8, maxLength: 32))
             UpdateIdentifiersInternal();
     }
 

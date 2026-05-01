@@ -128,7 +128,7 @@ public class IPCTestTab //: IDisposable
         Im.Text($"IsValid: {_validResult} ({_lastValidCheckAt} UTC)");
 
         Im.Line.Same();
-        if(Im.Button("Check IPC validity") || _lastValidCheckAt == DateTime.MinValue)
+        if(Im.Button("Check IPC validity"u8) || _lastValidCheckAt == DateTime.MinValue)
         {
             _validResult = _isValidIpcFunc();
             _lastValidCheckAt = DateTime.UtcNow;
@@ -136,7 +136,7 @@ public class IPCTestTab //: IDisposable
 
         Im.Separator();
 
-        if (Im.Button("Owned Actors Temporary Profile Test"))
+        if (Im.Button("Owned Actors Temporary Profile Test"u8))
         {
             bool found = false;
             foreach(var obj  in _objectManager.Objects)
@@ -174,11 +174,11 @@ public class IPCTestTab //: IDisposable
 
         Im.Text($"Memory: {(string.IsNullOrWhiteSpace(_rememberedProfileJson) ? "empty" : "has data")}");
 
-        Im.Text("Character to operate on:");
+        Im.Text("Character to operate on:"u8);
         Im.Line.Same();
-        Im.Input.Text("##operateon", ref _targetCharacterName, maxLength: 128);
+        Im.Input.Text("##operateon"u8, ref _targetCharacterName, maxLength: 128);
 
-        if (Im.Button("Copy current profile into memory"))
+        if (Im.Button("Copy current profile into memory"u8))
         {
             var actors = _gameObjectService.FindActorsByName(_targetCharacterName).ToList();
             if (actors.Count == 0)
@@ -195,7 +195,7 @@ public class IPCTestTab //: IDisposable
             _popupSystem.ShowPopup(PopupSystem.Messages.IPCProfileRemembered);
         }
 
-        if (Im.Button("GetActiveProfileIdOnCharacter into clipboard"))
+        if (Im.Button("GetActiveProfileIdOnCharacter into clipboard"u8))
         {
             var actors = _gameObjectService.FindActorsByName(_targetCharacterName).ToList();
             if (actors.Count == 0)
@@ -205,7 +205,7 @@ public class IPCTestTab //: IDisposable
 
             if(result == 0)
             {
-                Im.Clipboard.Set(uniqueId.ToString());
+                Im.Clipboard.Set($"{uniqueId}");
                 _popupSystem.ShowPopup(PopupSystem.Messages.IPCCopiedToClipboard);
             }
             else
@@ -217,7 +217,7 @@ public class IPCTestTab //: IDisposable
 
         using (var disabled = Im.Disabled(_rememberedProfileJson == null))
         {
-            if (Im.Button("SetTemporaryProfileOnCharacter from memory") && _rememberedProfileJson != null)
+            if (Im.Button("SetTemporaryProfileOnCharacter from memory"u8) && _rememberedProfileJson != null)
             {
                 var actors = _gameObjectService.FindActorsByName(_targetCharacterName).ToList();
                 if (actors.Count == 0)
@@ -237,7 +237,7 @@ public class IPCTestTab //: IDisposable
             }
         }
 
-        if (Im.Button("DeleteTemporaryProfileOnCharacter"))
+        if (Im.Button("DeleteTemporaryProfileOnCharacter"u8))
         {
             var actors = _gameObjectService.FindActorsByName(_targetCharacterName).ToList();
             if (actors.Count == 0)
@@ -255,7 +255,7 @@ public class IPCTestTab //: IDisposable
 
         Im.Separator();
 
-        if (Im.Button("Copy user profile list to clipboard"))
+        if (Im.Button("Copy user profile list to clipboard"u8))
         {
             Im.Clipboard.Set(string.Join("\n", 
                 _getProfileListIpcFunc().Select(x => $"{x.UniqueId}, {x.Name}, {x.VirtualPath}," +
@@ -263,11 +263,11 @@ public class IPCTestTab //: IDisposable
             _popupSystem.ShowPopup(PopupSystem.Messages.IPCCopiedToClipboard);
         }
 
-        Im.Text("Profile Unique ID:");
+        Im.Text("Profile Unique ID:"u8);
         Im.Line.Same();
-        Im.Input.Text("##profileguid", ref _targetProfileId, maxLength: 128);
+        Im.Input.Text("##profileguid"u8, ref _targetProfileId, maxLength: 128);
 
-        if (Im.Button("Get profile by Unique ID into clipboard"))
+        if (Im.Button("Get profile by Unique ID into clipboard"u8))
         {
             (int result, string? profileJson) = _getProfileByIdIpcFunc(Guid.Parse(_targetProfileId));
             if (result == 0)
@@ -282,7 +282,7 @@ public class IPCTestTab //: IDisposable
             }
         }
 
-        if (Im.Button("Get profile by Unique ID into memory"))
+        if (Im.Button("Get profile by Unique ID into memory"u8))
         {
             (int result, string? profileJson) = _getProfileByIdIpcFunc(Guid.Parse(_targetProfileId));
             if (result == 0)
@@ -297,7 +297,7 @@ public class IPCTestTab //: IDisposable
             }
         }
 
-        if (Im.Button("Enable profile by Unique ID"))
+        if (Im.Button("Enable profile by Unique ID"u8))
         {
             int result = _enableProfileByUniqueIdIpcFunc(Guid.Parse(_targetProfileId));
             if (result == 0)
@@ -311,7 +311,7 @@ public class IPCTestTab //: IDisposable
             }
         }
 
-        if (Im.Button("Disable profile by Unique ID"))
+        if (Im.Button("Disable profile by Unique ID"u8))
         {
             int result = _disableProfileByUniqueIdIpcFunc(Guid.Parse(_targetProfileId));
             if (result == 0)
@@ -327,11 +327,11 @@ public class IPCTestTab //: IDisposable
 
         Im.Separator();
 
-        Im.Text("Profile priority:");
+        Im.Text("Profile priority:"u8);
         Im.Line.Same();
-        Im.Input.Scalar("##profilepriority", ref _targetProfilePriority, "%d");
+        Im.Input.Scalar("##profilepriority"u8, ref _targetProfilePriority, "%d"u8);
 
-        if (Im.Button("Set profile priority by Unique ID"))
+        if (Im.Button("Set profile priority by Unique ID"u8))
         {
             int result = _setPriorityByUniqueIdIpcFunc(Guid.Parse(_targetProfileId), _targetProfilePriority);
             if (result == 0)
@@ -347,7 +347,7 @@ public class IPCTestTab //: IDisposable
 
         Im.Separator();
 
-        if (Im.Button("DeleteTemporaryProfileByUniqueId"))
+        if (Im.Button("DeleteTemporaryProfileByUniqueId"u8))
         {
             var actors = _gameObjectService.FindActorsByName(_targetCharacterName).ToList();
             if (actors.Count == 0)
@@ -363,7 +363,7 @@ public class IPCTestTab //: IDisposable
             }
         }
 
-        if (Im.Button("Add character to profile"))
+        if (Im.Button("Add character to profile"u8))
         {
             int result = _addPlayerCharacterIpcFunc(Guid.Parse(_targetProfileId), _targetCharacterName, WorldId.AnyWorld.Id);
 
@@ -376,7 +376,7 @@ public class IPCTestTab //: IDisposable
             }
         }
 
-        if (Im.Button("Remove character from profile"))
+        if (Im.Button("Remove character from profile"u8))
         {
             int result = _removePlayerCharacterIpcFunc(Guid.Parse(_targetProfileId), _targetCharacterName, WorldId.AnyWorld.Id);
 
@@ -391,7 +391,7 @@ public class IPCTestTab //: IDisposable
 
         Im.Separator();
 
-        if (Im.Button("Copy list of templates in profile to clipboard"))
+        if (Im.Button("Copy list of templates in profile to clipboard"u8))
         {
             var result = _getProfileTemplatesIpcFunc(Guid.Parse(_targetProfileId));
 
@@ -413,15 +413,15 @@ public class IPCTestTab //: IDisposable
 
         Im.Separator();
 
-        Im.Text("Cutscene actor index:");
+        Im.Text("Cutscene actor index:"u8);
         Im.Line.Same();
-        Im.Input.Scalar("##cutsceneactoridx", ref _cutsceneActorIdx, "%d");
+        Im.Input.Scalar("##cutsceneactoridx"u8, ref _cutsceneActorIdx, "%d"u8);
 
-        Im.Text("Cutscene actor parent index:");
+        Im.Text("Cutscene actor parent index:"u8);
         Im.Line.Same();
-        Im.Input.Scalar("##cutsceneactorparentidx", ref _cutsceneActorParentIdx, "%d");
+        Im.Input.Scalar("##cutsceneactorparentidx"u8, ref _cutsceneActorParentIdx, "%d"u8);
 
-        if (Im.Button("GameState.GetCutsceneParentIndex"))
+        if (Im.Button("GameState.GetCutsceneParentIndex"u8))
         {
             int result = _getCutsceneParentIdxIpcFunc(_cutsceneActorIdx);
             if (result > -1)
@@ -436,7 +436,7 @@ public class IPCTestTab //: IDisposable
             }
         }
 
-        if (Im.Button("GameState.SetCutsceneParentIndex"))
+        if (Im.Button("GameState.SetCutsceneParentIndex"u8))
         {
             int result = _setCutsceneParentIdxIpcFunc(_cutsceneActorIdx, _cutsceneActorParentIdx);
             if (result == 0)

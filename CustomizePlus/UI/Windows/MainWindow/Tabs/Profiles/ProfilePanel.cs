@@ -132,15 +132,15 @@ public class ProfilePanel : IHeader, IPanel
         var sizeFolders = availableSizePercent * 65;
 
         Im.Line.New();
-        Im.Text("Currently Selected Profiles");
+        Im.Text("Currently Selected Profiles"u8);
         Im.Separator();
-        using var table = Im.Table.Begin("profile", 3, TableFlags.RowBackground);
+        using var table = Im.Table.Begin("profile"u8, 3, TableFlags.RowBackground);
         if (!table)
             return;
 
-        table.SetupColumn("btn", TableColumnFlags.WidthFixed, sizeType);
-        table.SetupColumn("name", TableColumnFlags.WidthFixed, sizeMods);
-        table.SetupColumn("path", TableColumnFlags.WidthFixed, sizeFolders);
+        table.SetupColumn("btn"u8, TableColumnFlags.WidthFixed, sizeType);
+        table.SetupColumn("name"u8, TableColumnFlags.WidthFixed, sizeMods);
+        table.SetupColumn("path"u8, TableColumnFlags.WidthFixed, sizeFolders);
 
         var i = 0;
         foreach (var (fullName, path) in _selector.SelectedPaths.Select(p => (p.FullPath, p))
@@ -173,7 +173,7 @@ public class ProfilePanel : IHeader, IPanel
 
         using (var disabled = Im.Disabled(_selector.Selected?.IsWriteProtected ?? true))
         {
-            var isShouldDraw = Im.Tree.Header("Add character");
+            var isShouldDraw = Im.Tree.Header("Add character"u8);
 
             if (isShouldDraw)
                 DrawAddCharactersArea();
@@ -190,13 +190,13 @@ public class ProfilePanel : IHeader, IPanel
 
     private void DrawBasicSettings()
     {
-        using (var table = Im.Table.Begin("BasicSettings", 2))
+        using (var table = Im.Table.Begin("BasicSettings"u8, 2))
         {
             if (!table)
                 return;
 
-            table.SetupColumn("Label", TableColumnFlags.WidthFixed, 110 * ImGuiHelpers.GlobalScale);
-            table.SetupColumn("Control", TableColumnFlags.WidthStretch);
+            table.SetupColumn("Label"u8, TableColumnFlags.WidthFixed, 110 * ImGuiHelpers.GlobalScale);
+            table.SetupColumn("Control"u8, TableColumnFlags.WidthStretch);
 
             table.NextRow();
             UiHelpers.DrawPropertyLabel("Enabled");
@@ -220,12 +220,12 @@ public class ProfilePanel : IHeader, IPanel
         var enabled = _selector.Selected?.Enabled ?? false;
         using (Im.Disabled(_templateEditorManager.IsEditorActive || _templateEditorManager.IsEditorPaused))
         {
-            if (Im.Checkbox("##Enabled", ref enabled))
+            if (Im.Checkbox("##Enabled"u8, ref enabled))
                 _manager.SetEnabled(_selector.Selected!, enabled);
         }
 
         Im.Line.Same();
-        LunaStyle.DrawAlignedHelpMarker("Whether the templates in this profile should be applied at all.");
+        LunaStyle.DrawAlignedHelpMarker("Whether the templates in this profile should be applied at all."u8);
     }
 
     private void DrawProfileNameControl()
@@ -236,7 +236,7 @@ public class ProfilePanel : IHeader, IPanel
 
         if (!_selector.IncognitoMode)
         {
-            if (Im.Input.Text("##ProfileName", ref name, maxLength: 128))
+            if (Im.Input.Text("##ProfileName"u8, ref name, maxLength: 128))
             {
                 _newName = name;
                 _changedProfile = _selector.Selected;
@@ -262,7 +262,7 @@ public class ProfilePanel : IHeader, IPanel
         var priority = _newPriority ?? _selector.Selected!.Priority;
 
         Im.Item.SetNextWidth(90 * ImGuiHelpers.GlobalScale);
-        if (Im.Input.Scalar("##Priority", ref priority, "%d", 0, 0))
+        if (Im.Input.Scalar("##Priority"u8, ref priority, "%d"u8, 0, 0))
         {
             _newPriority = priority;
             _changedProfile = _selector.Selected;
@@ -276,8 +276,8 @@ public class ProfilePanel : IHeader, IPanel
         }
 
         Im.Line.Same();
-        LunaStyle.DrawAlignedHelpMarker("Profiles with a higher number here take precedence before profiles with a lower number.\n"
-            + "That means if two or more profiles affect same character, profile with higher priority will be applied to that character.");
+        LunaStyle.DrawAlignedHelpMarker(
+            "Profiles with a higher number here take precedence before profiles with a lower number.\nThat means if two or more profiles affect same character, profile with higher priority will be applied to that character."u8);
     }
 
      private void ExportToClipboard()
@@ -298,7 +298,7 @@ public class ProfilePanel : IHeader, IPanel
     {
         using (var style = Im.Style.Push(ImStyleDouble.ButtonTextAlign, new Vector2(0, 0.5f)))
         {
-            var width = new Vector2(Im.ContentRegion.Available.X - Im.Font.CalculateSize("Limit to my creatures").X - 68, 0);
+            var width = new Vector2(Im.ContentRegion.Available.X - Im.Font.CalculateSize("Limit to my creatures"u8).X - 68, 0);
 
             Im.Item.SetNextWidth(width.X);
 
@@ -346,10 +346,10 @@ public class ProfilePanel : IHeader, IPanel
         var isDefaultLPOrCurrentProfilesEnabled = (_manager.DefaultLocalPlayerProfile?.Enabled ?? false) || (_selector.Selected?.Enabled ?? false);
         using (Im.Disabled(isDefaultLPOrCurrentProfilesEnabled))
         {
-            if (Im.Checkbox("##DefaultLocalPlayerProfile", ref isDefaultLP))
+            if (Im.Checkbox("##DefaultLocalPlayerProfile"u8, ref isDefaultLP))
                 _manager.SetDefaultLocalPlayerProfile(isDefaultLP ? _selector.Selected! : null);
-            LunaStyle.DrawAlignedHelpMarkerLabel("Apply to any character you are logged in with",
-                "Whether the templates in this profile should be applied to any character you are currently logged in with.\r\nTakes priority over the next option for said character.\r\nThis setting cannot be applied to multiple profiles.");
+            LunaStyle.DrawAlignedHelpMarkerLabel("Apply to any character you are logged in with"u8,
+                "Whether the templates in this profile should be applied to any character you are currently logged in with.\r\nTakes priority over the next option for said character.\r\nThis setting cannot be applied to multiple profiles."u8);
         }
         if (isDefaultLPOrCurrentProfilesEnabled)
         {
@@ -361,17 +361,17 @@ public class ProfilePanel : IHeader, IPanel
 
         Im.Line.Same();
         using(Im.Disabled(true))
-            Im.Button("##splitter", new Vector2(1, Im.Style.FrameHeight));
+            Im.Button("##splitter"u8, new Vector2(1, Im.Style.FrameHeight));
         Im.Line.Same();
 
         var isDefault = _manager.DefaultProfile == _selector.Selected;
         var isDefaultOrCurrentProfilesEnabled = (_manager.DefaultProfile?.Enabled ?? false) || (_selector.Selected?.Enabled ?? false);
         using (Im.Disabled(isDefaultOrCurrentProfilesEnabled))
         {
-            if (Im.Checkbox("##DefaultProfile", ref isDefault))
+            if (Im.Checkbox("##DefaultProfile"u8, ref isDefault))
                 _manager.SetDefaultProfile(isDefault ? _selector.Selected! : null);
-            LunaStyle.DrawAlignedHelpMarkerLabel("Apply to all players and retainers",
-                "Whether the templates in this profile are applied to all players and retainers without a specific profile.\r\nThis setting cannot be applied to multiple profiles.");
+            LunaStyle.DrawAlignedHelpMarkerLabel("Apply to all players and retainers"u8,
+                "Whether the templates in this profile are applied to all players and retainers without a specific profile.\r\nThis setting cannot be applied to multiple profiles."u8);
         }
         if (isDefaultOrCurrentProfilesEnabled)
         {
@@ -385,12 +385,12 @@ public class ProfilePanel : IHeader, IPanel
         Im.Separator();
 
         using var dis = Im.Disabled(appliesToMultiple);
-        using var table = Im.Table.Begin("CharacterTable", 2, TableFlags.RowBackground | TableFlags.ScrollX | TableFlags.ScrollY, new Vector2(Im.ContentRegion.Available.X, 200));
+        using var table = Im.Table.Begin("CharacterTable"u8, 2, TableFlags.RowBackground | TableFlags.ScrollX | TableFlags.ScrollY, new Vector2(Im.ContentRegion.Available.X, 200));
         if (!table)
             return;
 
-        table.SetupColumn("##charaDel", TableColumnFlags.WidthFixed, Im.Style.FrameHeight);
-        table.SetupColumn("Character", TableColumnFlags.WidthFixed, 320 * ImGuiHelpers.GlobalScale);
+            table.SetupColumn("##charaDel"u8, TableColumnFlags.WidthFixed, Im.Style.FrameHeight);
+            table.SetupColumn("Character"u8, TableColumnFlags.WidthFixed, 320 * ImGuiHelpers.GlobalScale);
         table.HeaderRow();
 
         if (appliesToMultiple)
@@ -398,7 +398,7 @@ public class ProfilePanel : IHeader, IPanel
             table.NextColumn();
             table.NextColumn();
             Im.Cursor.FrameAlign();
-            Im.Text("Applies to multiple targets");
+            Im.Text("Applies to multiple targets"u8);
             return;
         }
 
@@ -411,7 +411,7 @@ public class ProfilePanel : IHeader, IPanel
             table.NextColumn();
             table.NextColumn();
             Im.Cursor.FrameAlign();
-            Im.Text("No characters are associated with this profile");
+            Im.Text("No characters are associated with this profile"u8);
         }
 
         foreach (var (character, idx) in charas)
@@ -464,17 +464,17 @@ public class ProfilePanel : IHeader, IPanel
 
     private void DrawTemplateArea()
     {
-        using var table = Im.Table.Begin("TemplateTable", 5, TableFlags.RowBackground | TableFlags.ScrollX | TableFlags.ScrollY);
+        using var table = Im.Table.Begin("TemplateTable"u8, 5, TableFlags.RowBackground | TableFlags.ScrollX | TableFlags.ScrollY);
         if (!table)
             return;
 
-        table.SetupColumn("##del", TableColumnFlags.WidthFixed, Im.Style.FrameHeight);
-        table.SetupColumn("##Index", TableColumnFlags.WidthFixed, 30 * ImGuiHelpers.GlobalScale);
-        table.SetupColumn("##Enabled", TableColumnFlags.WidthFixed, 30 * ImGuiHelpers.GlobalScale);
+        table.SetupColumn("##del"u8, TableColumnFlags.WidthFixed, Im.Style.FrameHeight);
+        table.SetupColumn("##Index"u8, TableColumnFlags.WidthFixed, 30 * ImGuiHelpers.GlobalScale);
+        table.SetupColumn("##Enabled"u8, TableColumnFlags.WidthFixed, 30 * ImGuiHelpers.GlobalScale);
 
-        table.SetupColumn("Template", TableColumnFlags.WidthFixed, 220 * ImGuiHelpers.GlobalScale);
+        table.SetupColumn("Template"u8, TableColumnFlags.WidthFixed, 220 * ImGuiHelpers.GlobalScale);
 
-        table.SetupColumn("##editbtn", TableColumnFlags.WidthFixed, 120 * ImGuiHelpers.GlobalScale);
+        table.SetupColumn("##editbtn"u8, TableColumnFlags.WidthFixed, 120 * ImGuiHelpers.GlobalScale);
 
         table.HeaderRow();
 
@@ -497,7 +497,7 @@ public class ProfilePanel : IHeader, IPanel
 
             table.NextColumn();
             var enabled = !_selector.Selected!.DisabledTemplates.Contains(template.UniqueId);
-            if (Im.Checkbox("##EnableCheckbox", ref enabled))
+            if (Im.Checkbox("##EnableCheckbox"u8, ref enabled))
                 _manager.ToggleTemplate(_selector.Selected!, idx);
             UiHelpers.DrawHoverTooltip("Whether this template is applied to the profile.");
 
@@ -528,7 +528,7 @@ public class ProfilePanel : IHeader, IPanel
         table.NextColumn();
         table.NextColumn();
         Im.Cursor.FrameAlign();
-        Im.Text("New");
+        Im.Text("New"u8);
         table.NextColumn();
         _templateCombo.Draw(_selector.Selected!, null, -1);
         table.NextRow();
@@ -559,7 +559,7 @@ public class ProfilePanel : IHeader, IPanel
             if (source)
             {
                 Im.Text($"Moving template #{index + 1:D2}...");
-                if (source.SetPayload(dragDropLabel))
+                if (source.SetPayload("TemplateDragDrop"u8))
                 {
                     _dragIndex = index;
                 }

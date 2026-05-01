@@ -34,7 +34,7 @@ public static class ServiceManagerBuilder
 {
     public static ServiceManager CreateProvider(IDalamudPluginInterface pi, Logger logger)
     {
-        var services = new ServiceManager(logger)
+        var services = new ServiceManager(logger, "Customize+")
             .AddExistingService(logger)
             .AddCore()
             .AddEvents()

@@ -133,15 +133,15 @@ public class TemplatePanel : IHeader, IPanel, IDisposable
         var sizeFolders = availableSizePercent * 65;
 
         Im.Line.New();
-        Im.Text("Currently Selected Templates");
+        Im.Text("Currently Selected Templates"u8);
         Im.Separator();
-        using var table = Im.Table.Begin("templates", 3, TableFlags.RowBackground);
+        using var table = Im.Table.Begin("templates"u8, 3, TableFlags.RowBackground);
         if (!table)
             return;
 
-        table.SetupColumn("btn", TableColumnFlags.WidthFixed, sizeType);
-        table.SetupColumn("name", TableColumnFlags.WidthFixed, sizeMods);
-        table.SetupColumn("path", TableColumnFlags.WidthFixed, sizeFolders);
+        table.SetupColumn("btn"u8, TableColumnFlags.WidthFixed, sizeType);
+        table.SetupColumn("Name"u8, TableColumnFlags.WidthFixed, sizeMods);
+        table.SetupColumn("path"u8, TableColumnFlags.WidthFixed, sizeFolders);
 
         var i = 0;
         foreach (var (fullName, path) in _selector.SelectedPaths.Select(p => (p.FullPath, p))
@@ -198,13 +198,13 @@ public class TemplatePanel : IHeader, IPanel, IDisposable
 
     private void DrawBasicSettings()
     {
-        using (var table = Im.Table.Begin("BasicSettings", 2))
+        using (var table = Im.Table.Begin("BasicSettings"u8, 2))
         {
             if (!table)
                 return;
 
-            table.SetupColumn("Label", TableColumnFlags.WidthFixed, 110 * ImGuiHelpers.GlobalScale);
-            table.SetupColumn("Control", TableColumnFlags.WidthStretch);
+            table.SetupColumn("Label"u8, TableColumnFlags.WidthFixed, 110 * ImGuiHelpers.GlobalScale);
+            table.SetupColumn("Control"u8, TableColumnFlags.WidthStretch);
 
             table.NextRow();
             UiHelpers.DrawPropertyLabel("Template Name");
@@ -225,7 +225,7 @@ public class TemplatePanel : IHeader, IPanel, IDisposable
 
         if (!_selector.IncognitoMode)
         {
-            if (Im.Input.Text("##Name", ref name, maxLength: 128))
+            if (Im.Input.Text("##Name"u8, ref name, maxLength: 128))
             {
                 _newName = name;
                 _changedTemplate = _selector.Selected;
