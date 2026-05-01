@@ -518,7 +518,7 @@ public class BoneEditorPanel
             }
             catch (Exception ex)
             {
-                _logger.Debug("clipboard blew up :(");
+                _logger.Debug($"Could not copy bone editor data to clipboard: {ex}");
             }
             _pendingClipboardText = null;
         }
