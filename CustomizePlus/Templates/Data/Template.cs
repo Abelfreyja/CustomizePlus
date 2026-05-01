@@ -1,13 +1,9 @@
-﻿using CustomizePlus.Api.Data;
+using CustomizePlus.Api.Data;
 using CustomizePlus.Core.Data;
 using CustomizePlus.Core.Extensions;
 using CustomizePlus.Core.Services;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using OtterGui.Classes;
-using System;
-using System.Collections.Generic;
-using System.IO;
 
 namespace CustomizePlus.Templates.Data;
 
@@ -15,7 +11,7 @@ namespace CustomizePlus.Templates.Data;
 ///     Encapsulates the user-controlled aspects of a template, ie all of
 ///     the information that gets saved to disk by the plugin.
 /// </summary>
-public sealed class Template : ISavable
+public sealed class Template : ISavable, IFileSystemValue<Template>
 {
     public const int Version = Constants.ConfigurationVersion;
 
@@ -30,6 +26,16 @@ public sealed class Template : ISavable
 
     public string Incognito
         => UniqueId.ToString()[..8];
+
+    public string Identifier
+        => UniqueId.ToString();
+
+    public DataPath Path { get; } = new();
+
+    public IFileSystemData<Template>? Node { get; set; }
+
+    string IFileSystemValue.DisplayName
+        => Name.Text;
 
     public Dictionary<string, BoneTransform> Bones { get; init; } = new();
 
@@ -81,7 +87,7 @@ public sealed class Template : ISavable
 
     #region Serialization
 
-    public new JObject JsonSerialize()
+    public JObject JsonSerialize()
     {
         var ret = new JObject()
         {
@@ -127,6 +133,8 @@ public sealed class Template : ISavable
         if (template.ModifiedDate < creationDate)
             template.ModifiedDate = creationDate;
 
+        ReadFileSystemPath(obj, template.Path);
+
         return template;
     }
 
@@ -144,11 +152,33 @@ public sealed class Template : ISavable
             Formatting = Formatting.Indented,
         };
         var obj = JsonSerialize();
+        WriteFileSystemPath(obj);
         obj.WriteTo(j);
     }
 
     public string LogName(string fileName)
-        => Path.GetFileNameWithoutExtension(fileName);
+        => global::System.IO.Path.GetFileNameWithoutExtension(fileName);
 
     #endregion
+
+    private static void ReadFileSystemPath(JObject obj, DataPath path)
+    {
+        if (obj["FileSystemPath"] is not JObject pathObj)
+            return;
+
+        path.Folder = pathObj["Folder"]?.ToObject<string>() ?? string.Empty;
+        path.SortName = pathObj["SortName"]?.ToObject<string>();
+    }
+
+    private void WriteFileSystemPath(JObject obj)
+    {
+        if (Path.IsDefault)
+            return;
+
+        obj["FileSystemPath"] = new JObject
+        {
+            ["Folder"] = Path.Folder,
+            ["SortName"] = Path.SortName,
+        };
+    }
 }

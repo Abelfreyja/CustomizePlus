@@ -1,5 +1,3 @@
-﻿using OtterGui.Classes;
-
 namespace CustomizePlus.UI.Windows.MainWindow.Tabs;
 
 public class MessagesTab
@@ -12,5 +10,5 @@ public class MessagesTab
     public bool IsVisible
         => _messages.Count > 0;
 
-    public void Draw() => _messages.Draw();
+    public void Draw() => _messages.DrawNotificationLog();
 }

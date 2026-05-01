@@ -1,9 +1,3 @@
-﻿using OtterGui.Filesystem;
-using OtterGui.Log;
-using System.IO;
-using System.Text.RegularExpressions;
-using System;
-using OtterGui.Classes;
 using CustomizePlus.Core.Services;
 using CustomizePlus.Profiles.Data;
 using CustomizePlus.Profiles.Events;
@@ -11,13 +5,12 @@ using Dalamud.Interface.ImGuiNotification;
 
 namespace CustomizePlus.Profiles;
 
-public class ProfileFileSystem : FileSystem<Profile>, IDisposable, ISavable
+public sealed class ProfileFileSystem : BaseFileSystem, IDisposable
 {
     private readonly ProfileManager _profileManager;
-    private readonly SaveService _saveService;
     private readonly ProfileChanged _profileChanged;
     private readonly MessageService _messageService;
-    private readonly Logger _logger;
+    private readonly FileSystemSaveService<Profile> _saver;
 
     public ProfileFileSystem(
         ProfileManager profileManager,
@@ -25,32 +18,48 @@ public class ProfileFileSystem : FileSystem<Profile>, IDisposable, ISavable
         ProfileChanged profileChanged,
         MessageService messageService,
         Logger logger)
+        : base("ProfileFileSystem", logger, true)
     {
         _profileManager = profileManager;
-        _saveService = saveService;
         _profileChanged = profileChanged;
         _messageService = messageService;
-        _logger = logger;
+        _saver = new FileSystemSaveService<Profile>(
+            logger,
+            this,
+            saveService,
+            _profileManager.Profiles.Where(p => !p.IsTemporary),
+            ProfileFromIdentifier,
+            fileNames => fileNames.ProfileLockedNodes,
+            fileNames => fileNames.ProfileExpandedFolders,
+            fileNames => fileNames.ProfileSelectedNodes,
+            fileNames => fileNames.ProfileOrganization,
+            fileNames => fileNames.LegacyProfileSortOrder);
 
         _profileChanged.Subscribe(OnProfileChange, ProfileChanged.Priority.ProfileFileSystem);
-
-        Changed += OnChange;
-
-        Reload();
+        _saver.Load();
     }
 
     public void Dispose()
     {
         _profileChanged.Unsubscribe(OnProfileChange);
+        _saver.Dispose();
+        Selection.Dispose();
     }
 
-    private void OnProfileChange(ProfileChanged.Type type, Profile? profile, object? data)
+    private Profile? ProfileFromIdentifier(string identifier)
+        => Guid.TryParse(identifier, out var id)
+            ? _profileManager.Profiles.FirstOrDefault(profile => profile.UniqueId == id && !profile.IsTemporary)
+            : null;
+
+    private void OnProfileChange(in ProfileChanged.Arguments args)
     {
+        var (type, profile, data) = args;
         switch (type)
         {
-            case ProfileChanged.Type.Created:
+            case ProfileChanged.Type.Created when profile is not null:
                 var parent = Root;
                 if (data is string path)
+                {
                     try
                     {
                         parent = FindOrCreateAllFolders(path);
@@ -59,71 +68,22 @@ public class ProfileFileSystem : FileSystem<Profile>, IDisposable, ISavable
                     {
                         _messageService.NotificationMessage(ex, $"Could not move profile to {path} because the folder could not be created.", NotificationType.Error);
                     }
+                }
 
-                CreateDuplicateLeaf(parent, profile.Name.Text, profile);
-
+                CreateDuplicateDataNode(parent, profile.Name.Text, profile);
                 return;
-            case ProfileChanged.Type.Deleted:
-                if (TryGetValue(profile, out var leaf1))
-                    Delete(leaf1);
+            case ProfileChanged.Type.Deleted when profile?.Node is { } node:
+                Delete(node);
                 return;
             case ProfileChanged.Type.ReloadedAll:
-                Reload();
+                _saver.Load();
                 return;
-            case ProfileChanged.Type.Renamed when data is string oldName:
-                if (!TryGetValue(profile, out var leaf2))
-                    return;
-
+            case ProfileChanged.Type.Renamed when profile?.Node is { } node && data is string oldName:
                 var old = oldName.FixName();
-                if (old == leaf2.Name || leaf2.Name.IsDuplicateName(out var baseName, out _) && baseName == old)
-                    RenameWithDuplicates(leaf2, profile.Name);
+                var name = node.Name.ToString();
+                if (old == name || (name.IsDuplicateName(out var baseName, out _) && baseName == old))
+                    RenameWithDuplicates(node, profile.Name.Text);
                 return;
         }
-    }
-
-    private void Reload()
-    {
-        if (!File.Exists(_saveService.FileNames.ProfileFileSystem))
-        {
-            _logger.Debug("WORKAROUND: saving filesystem file");
-            _saveService.ImmediateSaveSync(this);
-        }
-
-        if (Load(new FileInfo(_saveService.FileNames.ProfileFileSystem), _profileManager.Profiles, ProfileToIdentifier, ProfileToName))
-            _saveService.ImmediateSave(this);
-
-        _logger.Debug("Reloaded profile filesystem.");
-    }
-
-    private void OnChange(FileSystemChangeType type, IPath _1, IPath? _2, IPath? _3)
-    {
-        if (type != FileSystemChangeType.Reload)
-            _saveService.QueueSave(this);
-    }
-
-    // Used for saving and loading.
-    private static string ProfileToIdentifier(Profile profile)
-        => profile.UniqueId.ToString();
-
-    private static string ProfileToName(Profile profile)
-        => profile.Name.Text.FixName();
-
-    private static bool ProfileHasDefaultPath(Profile profile, string fullPath)
-    {
-        var regex = new Regex($@"^{Regex.Escape(ProfileToName(profile))}( \(\d+\))?$");
-        return regex.IsMatch(fullPath);
-    }
-
-    private static (string, bool) SaveProfile(Profile profile, string fullPath)
-        // Only save pairs with non-default paths.
-        => ProfileHasDefaultPath(profile, fullPath)
-            ? (string.Empty, false)
-            : (ProfileToIdentifier(profile), true);
-
-    public string ToFilename(FilenameService fileNames) => fileNames.ProfileFileSystem;
-
-    public void Save(StreamWriter writer)
-    {
-        SaveToFile(writer, SaveProfile, true);
     }
 }

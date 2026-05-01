@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 
-<Project Sdk="Dalamud.NET.Sdk/14.0.2">
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
   <PropertyGroup>
     <AssemblyTitle>CustomizePlus</AssemblyTitle>
     <Version>2.0.0.0</Version>
@@ -34,7 +34,7 @@
     </PackageReference>
     <ProjectReference Include="..\CustomizePlus.GameData\CustomizePlus.GameData.csproj" />
     <ProjectReference Include="..\submodules\ECommonsLite\ECommonsLite\ECommonsLite.csproj" />
-    <ProjectReference Include="..\submodules\OtterGui\OtterGui.csproj" />
+    <ProjectReference Include="..\submodules\Luna\Luna\Luna.csproj" />
   </ItemGroup>
 
   <ItemGroup>

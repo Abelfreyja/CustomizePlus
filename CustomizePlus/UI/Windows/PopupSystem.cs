@@ -1,39 +1,45 @@
-﻿using Dalamud.Interface.Utility;
+﻿using CustomizePlus.Configuration.Data;
+using CustomizePlus.Configuration.Services;
 using Dalamud.Bindings.ImGui;
-using OtterGui;
-using OtterGui.Log;
-using OtterGui.Raii;
-using System;
-using System.Collections.Generic;
-using System.Numerics;
-using CustomizePlus.Configuration.Data;
+using Dalamud.Interface.Utility;
 
 namespace CustomizePlus.UI.Windows;
 
 public partial class PopupSystem
 {
+    private const WindowFlags PopupWindowFlags = WindowFlags.NoResize | WindowFlags.NoMove | WindowFlags.NoSavedSettings;
+
     private readonly Logger _logger;
     private readonly PluginConfiguration _configuration;
+    private readonly ConfigurationService _configurationService;
 
     private readonly Dictionary<string, PopupData> _popups = new();
     private readonly List<PopupData> _displayedPopups = new();
 
-    public PopupSystem(Logger logger, PluginConfiguration configuration)
+    public PopupSystem(Logger logger, PluginConfiguration configuration, ConfigurationService configurationService)
     {
         _logger = logger;
         _configuration = configuration;
+        _configurationService = configurationService;
 
         RegisterMessages();
     }
 
-    public void RegisterPopup(string name, string text, bool displayOnce = false, Vector2? sizeDividers = null)
+    public void RegisterPopup(string name, string title, string text, bool displayOnce = false, Vector2? sizeDividers = null)
     {
         name = name.ToLowerInvariant();
 
         if (_popups.ContainsKey(name))
             throw new Exception($"Popup \"{name}\" is already registered");
 
-        _popups[name] = new PopupData { Name = name, Text = text, DisplayOnce = displayOnce, SizeDividers = sizeDividers };
+        _popups[name] = new PopupData
+        {
+            Name = name,
+            Title = title,
+            Text = text,
+            DisplayOnce = displayOnce,
+            SizeDividers = sizeDividers
+        };
 
         _logger.Debug($"Popup \"{name}\" registered");
     }
@@ -50,7 +56,7 @@ public partial class PopupSystem
 
         var popup = _popups[name];
 
-        if (popup.DisplayRequested || (popup.DisplayOnce && _configuration.UISettings.ViewedMessageWindows.Contains(name)))
+        if (popup.DisplayRequested || _displayedPopups.Contains(popup) || (popup.DisplayOnce && _configuration.UISettings.ViewedMessageWindows.Contains(name)))
             return false;
 
         popup.DisplayRequested = true;
@@ -66,7 +72,7 @@ public partial class PopupSystem
 
         foreach (var popup in _popups.Values)
         {
-            if (popup.DisplayRequested)
+            if (popup.DisplayRequested && !_displayedPopups.Contains(popup))
                 _displayedPopups.Add(popup);
         }
 
@@ -78,39 +84,47 @@ public partial class PopupSystem
             var popup = _displayedPopups[i];
             if (popup.DisplayRequested)
             {
-                ImGui.OpenPopup(popup.Name);
+                Im.Popup.Open(popup.ImGuiLabel);
                 popup.DisplayRequested = false;
             }
 
             var xDiv = popup.SizeDividers?.X ?? 5;
-            var yDiv = popup.SizeDividers?.Y ?? 12;
+            var yDiv = popup.SizeDividers?.Y ?? 8;
+            var minWidth = 360 * ImGuiHelpers.GlobalScale;
+            var minHeight = 150 * ImGuiHelpers.GlobalScale;
+            var size = new Vector2(
+                MathF.Max(minWidth, viewportSize.X / xDiv),
+                MathF.Max(minHeight, viewportSize.Y / yDiv));
 
-            ImGui.SetNextWindowSize(new Vector2(viewportSize.X / xDiv, viewportSize.Y / yDiv));
+            ImGui.SetNextWindowSize(size, ImGuiCond.Appearing);
             ImGui.SetNextWindowPos(viewportSize / 2, ImGuiCond.Always, new Vector2(0.5f));
-            using var popupWindow = ImRaii.Popup(popup.Name, ImGuiWindowFlags.Modal);
+            using var popupWindow = Im.Popup.BeginModal(popup.ImGuiLabel, PopupWindowFlags);
             if (!popupWindow)
             {
                 //fixes bug with windows being closed after going into gpose
-                ImGui.OpenPopup(popup.Name);
+                Im.Popup.Open(popup.ImGuiLabel);
                 continue;
             }
 
-            ImGui.SetCursorPos(new Vector2(10, ImGui.GetWindowHeight() / 4));
-            ImGuiUtil.TextWrapped(popup.Text);
+            ImGui.SetCursorPosY(ImGui.GetCursorPosY() + ImGui.GetStyle().ItemSpacing.Y);
+            Im.TextWrapped(popup.Text);
+            ImGui.Spacing();
+            ImGui.Separator();
+            ImGui.Spacing();
 
             var buttonWidth = new Vector2(150 * ImGuiHelpers.GlobalScale, 0);
-            var yPos = ImGui.GetWindowHeight() - 2 * ImGui.GetFrameHeight();
+            var yPos = ImGui.GetWindowHeight() - ImGui.GetFrameHeight() - ImGui.GetStyle().WindowPadding.Y;
             var xPos = (ImGui.GetWindowWidth() - ImGui.GetStyle().ItemSpacing.X - buttonWidth.X) / 2;
             ImGui.SetCursorPos(new Vector2(xPos, yPos));
-            if (ImGui.Button("Ok", buttonWidth))
+            if (ImGui.Button("OK", buttonWidth))
             {
-                ImGui.CloseCurrentPopup();
+                Im.Popup.CloseCurrent();
                 _displayedPopups.RemoveAt(i--);
 
                 if (popup.DisplayOnce)
                 {
                     _configuration.UISettings.ViewedMessageWindows.Add(popup.Name);
-                    _configuration.Save();
+                    _configurationService.Save(PluginConfigurationChange.Popup);
                 }
             }
         }
@@ -118,9 +132,14 @@ public partial class PopupSystem
 
     private class PopupData
     {
-        public string Name { get; set; }
+        public string Name { get; set; } = string.Empty;
 
-        public string Text { get; set; }
+        public string Title { get; set; } = string.Empty;
+
+        public string ImGuiLabel
+            => $"{Title}##{Name}";
+
+        public string Text { get; set; } = string.Empty;
 
         public bool DisplayRequested { get; set; }
 

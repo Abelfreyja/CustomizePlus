@@ -1,13 +1,14 @@
-﻿using CustomizePlus.Templates.Data;
-using OtterGui.Classes;
+using CustomizePlus.Templates.Data;
 
 namespace CustomizePlus.Templates.Events;
 
 /// <summary>
 /// Triggered when Template is changed
 /// </summary>
-public class TemplateChanged() : EventWrapper<TemplateChanged.Type, Template?, object?, TemplateChanged.Priority>(nameof(TemplateChanged))
+public class TemplateChanged(LunaLogger log) : EventBase<TemplateChanged.Arguments, TemplateChanged.Priority>(nameof(TemplateChanged), log)
 {
+    public readonly record struct Arguments(Type Type, Template? Template, object? Data)
+
     public enum Type
     {
         Created,

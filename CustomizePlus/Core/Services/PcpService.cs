@@ -5,11 +5,8 @@ using CustomizePlus.Profiles;
 using CustomizePlus.Templates;
 using CustomizePlus.Templates.Data;
 using Newtonsoft.Json.Linq;
-using OtterGui.Log;
-using OtterGui.Services;
 using Penumbra.GameData.Actors;
 using Penumbra.GameData.Interop;
-using System;
 
 namespace CustomizePlus.Core.Services;
 

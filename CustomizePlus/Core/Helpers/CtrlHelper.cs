@@ -1,7 +1,6 @@
-﻿using System;
+﻿using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Utility;
-using Dalamud.Bindings.ImGui;
 using System.Text;
 
 namespace CustomizePlus.Core.Helpers;
@@ -41,9 +40,7 @@ public static class CtrlHelper
     {
         var checkBoxState = ImGui.Checkbox(label, ref value);
         ImGui.SameLine();
-        ImGui.PushFont(UiBuilder.IconFont);
-        ImGui.Text(FontAwesomeIcon.InfoCircle.ToIconString());
-        ImGui.PopFont();
+        FontAwesomeIcon.InfoCircle.Draw();
         AddHoverText(helpText);
         ImGui.SameLine();
         ImGui.Text(text);
@@ -121,9 +118,7 @@ public static class CtrlHelper
     {
         if (isSameLine)
             ImGui.SameLine();
-        ImGui.PushFont(UiBuilder.IconFont);
-        ImGui.Text(icon.ToIconString());
-        ImGui.PopFont();
+        icon.Draw();
         ImGui.SameLine();
         ImGui.TextWrapped(text);
     }

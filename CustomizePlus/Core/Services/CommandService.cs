@@ -1,19 +1,14 @@
-﻿using Dalamud.Game.Command;
-using Dalamud.Plugin.Services;
-using OtterGui.Classes;
-using System;
-using System.Linq;
-using OtterGui.Log;
-using Dalamud.Game.Text.SeStringHandling;
-using CustomizePlus.Profiles;
-using CustomizePlus.Game.Services;
-using CustomizePlus.UI.Windows.MainWindow.Tabs.Templates;
-using CustomizePlus.UI.Windows.MainWindow;
-using CustomizePlus.Profiles.Data;
 using CustomizePlus.Configuration.Data;
-using Dalamud.Interface.ImGuiNotification;
+using CustomizePlus.Game.Services;
 using CustomizePlus.GameData.Extensions;
-using System.Collections.Generic;
+using CustomizePlus.Profiles;
+using CustomizePlus.Profiles.Data;
+using CustomizePlus.UI.Windows.MainWindow;
+using CustomizePlus.UI.Windows.MainWindow.Tabs.Templates;
+using Dalamud.Game.Command;
+using Dalamud.Game.Text.SeStringHandling;
+using Dalamud.Interface.ImGuiNotification;
+using Dalamud.Plugin.Services;
 
 namespace CustomizePlus.Core.Services;
 

@@ -2,7 +2,7 @@
 using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
-using OtterGui.Services;
+using Luna;
 using Penumbra.GameData.Enums;
 using Penumbra.GameData.Interop;
 using Penumbra.String;
@@ -90,8 +90,10 @@ public sealed class CutsceneService : IRequiredService, IDisposable
         _characterDestructor.Unsubscribe(OnCharacterDestructor);
     }
 
-    private unsafe void OnCharacterDestructor(Character* character)
+    private unsafe void OnCharacterDestructor(in CharacterDestructor.Arguments args)
     {
+        var character = args.Character;
+
         if (character->GameObject.ObjectIndex < CutsceneStartIdx)
         {
             // Remove all associations for now non-existing actor.
@@ -116,8 +118,11 @@ public sealed class CutsceneService : IRequiredService, IDisposable
         }
     }
 
-    private unsafe void OnCharacterCopy(Character* target, Character* source)
+    private unsafe void OnCharacterCopy(in CopyCharacter.Arguments args)
     {
+        var target = args.Target;
+        var source = args.Source;
+
         if (target == null || target->GameObject.ObjectIndex is < CutsceneStartIdx or >= CutsceneEndIdx)
             return;
 

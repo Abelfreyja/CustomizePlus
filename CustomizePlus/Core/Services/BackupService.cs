@@ -1,8 +1,4 @@
-﻿using OtterGui.Classes;
-using OtterGui.Log;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
+using System.Threading;
 
 namespace CustomizePlus.Core.Services;
 
@@ -19,7 +15,7 @@ public class BackupService
         _filenameService = filenameService;
         _fileNames = PluginFiles(_filenameService);
         _configDirectory = new DirectoryInfo(_filenameService.ConfigDirectory);
-        Backup.CreateAutomaticBackup(logger, _configDirectory, _fileNames);
+        Backup.CreateAutomaticBackup(logger, _configDirectory, _fileNames, CancellationToken.None);
     }
 
     /// <summary>
@@ -47,8 +43,16 @@ public class BackupService
         var list = new List<FileInfo>(16)
         {
             new(fileNames.ConfigFile),
-            new(fileNames.ProfileFileSystem),
-            new(fileNames.TemplateFileSystem)
+            new(fileNames.LegacyProfileSortOrder),
+            new(fileNames.ProfileOrganization),
+            new(fileNames.ProfileLockedNodes),
+            new(fileNames.ProfileSelectedNodes),
+            new(fileNames.ProfileExpandedFolders),
+            new(fileNames.LegacyTemplateSortOrder),
+            new(fileNames.TemplateOrganization),
+            new(fileNames.TemplateLockedNodes),
+            new(fileNames.TemplateSelectedNodes),
+            new(fileNames.TemplateExpandedFolders)
         };
 
         list.AddRange(fileNames.Profiles());

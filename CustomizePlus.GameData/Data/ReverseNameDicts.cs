@@ -1,6 +1,6 @@
 ﻿using CustomizePlus.GameData.ReverseSearchDictionaries;
 using Dalamud.Game.ClientState.Objects.Enums;
-using OtterGui.Services;
+using Luna;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
@@ -52,7 +52,7 @@ public sealed class ReverseNameDicts(
         npcId = default;
         return kind switch
         {
-            ObjectKind.MountType => Mounts.TryGetValue(name, out npcId),
+            ObjectKind.Mount => Mounts.TryGetValue(name, out npcId),
             ObjectKind.Companion => Companions.TryGetValue(name, out npcId),
             ObjectKind.BattleNpc => BNpcs.TryGetValue(name, out npcId),
              ObjectKind.EventNpc => ENpcs.TryGetValue(name, out npcId),

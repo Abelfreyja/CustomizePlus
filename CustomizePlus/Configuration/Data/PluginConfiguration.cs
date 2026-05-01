@@ -1,18 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
+using CustomizePlus.Core.Data;
+using CustomizePlus.Core.Helpers;
+using CustomizePlus.Core.Services;
+using CustomizePlus.UI.Windows;
 using Dalamud.Configuration;
 using Newtonsoft.Json;
-using OtterGui.Classes;
-using OtterGui.Widgets;
-using ErrorEventArgs = Newtonsoft.Json.Serialization.ErrorEventArgs;
-using CustomizePlus.Core.Services;
-using CustomizePlus.Core.Data;
-using CustomizePlus.Configuration.Services;
-using CustomizePlus.UI.Windows;
-using Dalamud.Interface.ImGuiNotification;
 using Penumbra.GameData.Actors;
-using CustomizePlus.Core.Helpers;
 
 namespace CustomizePlus.Configuration.Data;
 
@@ -49,9 +41,10 @@ public class PluginConfiguration : IPluginConfiguration, ISavable
     [Serializable]
     public class UISettingsEntries
     {
+        [JsonConverter(typeof(DoubleModifierJsonConverter))]
         public DoubleModifier DeleteTemplateModifier { get; set; } = new(ModifierHotkey.Control, ModifierHotkey.Shift);
 
-        public bool FoldersDefaultOpen { get; set; } = true;
+        public bool FoldersDefaultOpen { get; set; } = false; // i hate you.
 
         public bool OpenWindowAtStart { get; set; } = false;
 
@@ -133,54 +126,6 @@ public class PluginConfiguration : IPluginConfiguration, ISavable
 
     public IntegrationSettingsEntries IntegrationSettings { get; set; } = new();
 
-    [JsonIgnore]
-    private readonly SaveService _saveService;
-
-    [JsonIgnore]
-    private readonly MessageService _messageService;
-
-    public PluginConfiguration(
-        SaveService saveService,
-        MessageService messageService,
-        ConfigurationMigrator migrator)
-    {
-        _saveService = saveService;
-        _messageService = messageService;
-
-        Load(migrator);
-    }
-
-    public void Load(ConfigurationMigrator migrator)
-    {
-        static void HandleDeserializationError(object? sender, ErrorEventArgs errorArgs)
-        {
-            Plugin.Logger.Error(
-                $"Error parsing configuration at {errorArgs.ErrorContext.Path}, using default or migrating:\n{errorArgs.ErrorContext.Error}");
-            errorArgs.ErrorContext.Handled = true;
-        }
-
-        if (!File.Exists(_saveService.FileNames.ConfigFile))
-            return;
-
-        try
-        {
-            var text = File.ReadAllText(_saveService.FileNames.ConfigFile);
-            JsonConvert.PopulateObject(text, this, new JsonSerializerSettings
-            {
-                Error = HandleDeserializationError,
-                Converters = new List<JsonConverter> { new ActorIdentifierJsonConverter() }
-            });
-        }
-        catch (Exception ex)
-        {
-            _messageService.NotificationMessage(ex,
-                "Error reading configuration, reverting to default.\nYou may be able to restore your configuration using the rolling backups in the XIVLauncher/backups/CustomizePlus directory.",
-                "Error reading configuration", NotificationType.Error);
-        }
-
-        migrator.Migrate(this);
-    }
-
     public string ToFilename(FilenameService fileNames)
         => fileNames.ConfigFile;
 
@@ -191,7 +136,4 @@ public class PluginConfiguration : IPluginConfiguration, ISavable
         serializer.Converters.Add(new ActorIdentifierJsonConverter());
         serializer.Serialize(jWriter, this);
     }
-
-    public void Save()
-        => _saveService.DelaySave(this);
 }

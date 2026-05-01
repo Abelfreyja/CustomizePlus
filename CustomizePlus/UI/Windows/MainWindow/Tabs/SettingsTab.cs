@@ -1,5 +1,6 @@
-﻿using CustomizePlus.Armatures.Services;
+using CustomizePlus.Armatures.Services;
 using CustomizePlus.Configuration.Data;
+using CustomizePlus.Configuration.Services;
 using CustomizePlus.Core.Helpers;
 using CustomizePlus.Core.Services;
 using CustomizePlus.Templates;
@@ -8,12 +9,7 @@ using Dalamud.Interface;
 using Dalamud.Interface.ImGuiNotification;
 using Dalamud.Interface.Utility;
 using Dalamud.Plugin;
-using OtterGui;
-using OtterGui.Classes;
-using OtterGui.Raii;
-using OtterGui.Widgets;
 using System.Diagnostics;
-using System.Numerics;
 
 namespace CustomizePlus.UI.Windows.MainWindow.Tabs;
 
@@ -24,6 +20,7 @@ public class SettingsTab
 
     private readonly IDalamudPluginInterface _pluginInterface;
     private readonly PluginConfiguration _configuration;
+    private readonly ConfigurationService _configurationService;
     private readonly ArmatureManager _armatureManager;
     private readonly HookingService _hookingService;
     private readonly TemplateEditorManager _templateEditorManager;
@@ -35,6 +32,7 @@ public class SettingsTab
     public SettingsTab(
         IDalamudPluginInterface pluginInterface,
         PluginConfiguration configuration,
+        ConfigurationService configurationService,
         ArmatureManager armatureManager,
         HookingService hookingService,
         TemplateEditorManager templateEditorManager,
@@ -45,6 +43,7 @@ public class SettingsTab
     {
         _pluginInterface = pluginInterface;
         _configuration = configuration;
+        _configurationService = configurationService;
         _armatureManager = armatureManager;
         _hookingService = hookingService;
         _templateEditorManager = templateEditorManager;
@@ -57,7 +56,7 @@ public class SettingsTab
     public void Draw()
     {
         UiHelpers.SetupCommonSizes();
-        using var child = ImRaii.Child("MainWindowChild");
+        using var child = Im.Child.Begin("MainWindowChild");
         if (!child)
             return;
 
@@ -68,7 +67,7 @@ public class SettingsTab
         ImGui.NewLine();
         ImGui.NewLine();
 
-        using (var child2 = ImRaii.Child("SettingsChild"))
+        using (var child2 = Im.Child.Begin("SettingsChild"))
         {
             DrawProfileApplicationSettings();
             DrawInterface();
@@ -89,7 +88,7 @@ public class SettingsTab
 
     private void DrawPluginEnabledCheckbox()
     {
-        using (var disabled = ImRaii.Disabled(_templateEditorManager.IsEditorActive))
+        using (var disabled = Im.Disabled(_templateEditorManager.IsEditorActive))
         {
             var isChecked = _configuration.PluginEnabled;
 
@@ -98,7 +97,7 @@ public class SettingsTab
                     "Globally enables or disables all plugin functionality.", ref isChecked))
             {
                 _configuration.PluginEnabled = isChecked;
-                _configuration.Save();
+                _configurationService.Save(PluginConfigurationChange.PluginState);
                 _hookingService.ReloadHooks();
             }
         }
@@ -128,7 +127,7 @@ public class SettingsTab
                 "Apply profile for your character in your main character window, if it is set.", ref isChecked))
         {
             _configuration.ProfileApplicationSettings.ApplyInCharacterWindow = isChecked;
-            _configuration.Save();
+            _configurationService.Save(PluginConfigurationChange.ProfileApplication);
             _armatureManager.RebindAllArmatures();
         }
     }
@@ -141,7 +140,7 @@ public class SettingsTab
                 "Apply profile for your character in your try-on, dye preview or glamour plate window, if it is set.", ref isChecked))
         {
             _configuration.ProfileApplicationSettings.ApplyInTryOn = isChecked;
-            _configuration.Save();
+            _configurationService.Save(PluginConfigurationChange.ProfileApplication);
             _armatureManager.RebindAllArmatures();
         }
     }
@@ -154,7 +153,7 @@ public class SettingsTab
                 "Apply appropriate profile for the adventurer card you are currently looking at.", ref isChecked))
         {
             _configuration.ProfileApplicationSettings.ApplyInCards = isChecked;
-            _configuration.Save();
+            _configurationService.Save(PluginConfigurationChange.ProfileApplication);
             _armatureManager.RebindAllArmatures();
         }
     }
@@ -167,7 +166,7 @@ public class SettingsTab
                 "Apply appropriate profile for the character you are currently inspecting.", ref isChecked))
         {
             _configuration.ProfileApplicationSettings.ApplyInInspect = isChecked;
-            _configuration.Save();
+            _configurationService.Save(PluginConfigurationChange.ProfileApplication);
             _armatureManager.RebindAllArmatures();
         }
     }
@@ -180,7 +179,7 @@ public class SettingsTab
                 "Apply appropriate profile for the character you have currently selected on character select screen during login.", ref isChecked))
         {
             _configuration.ProfileApplicationSettings.ApplyInLobby = isChecked;
-            _configuration.Save();
+            _configurationService.Save(PluginConfigurationChange.ProfileApplication);
             _armatureManager.RebindAllArmatures();
         }
     }
@@ -205,7 +204,7 @@ public class SettingsTab
                 "Controls whether successful execution of chat commands will be acknowledged by separate chat message or not.", ref isChecked))
         {
             _configuration.CommandSettings.PrintSuccessMessages = isChecked;
-            _configuration.Save();
+            _configurationService.Save(PluginConfigurationChange.Command);
         }
     }
     #endregion
@@ -234,10 +233,10 @@ public class SettingsTab
 
         UiHelpers.DefaultLineSpace();
 
-        if (Widget.DoubleModifierSelector("Template Deletion Modifier",
+        if (KeySelector.DoubleModifier("Template Deletion Modifier",
             "A modifier you need to hold while clicking the Delete Template button for it to take effect.", 100 * ImGuiHelpers.GlobalScale,
             _configuration.UISettings.DeleteTemplateModifier, v => _configuration.UISettings.DeleteTemplateModifier = v))
-            _configuration.Save();
+            _configurationService.Save(PluginConfigurationChange.Interface);
     }
 
     private void DrawOpenWindowAtStart()
@@ -249,7 +248,7 @@ public class SettingsTab
         {
             _configuration.UISettings.OpenWindowAtStart = isChecked;
 
-            _configuration.Save();
+            _configurationService.Save(PluginConfigurationChange.Interface);
         }
     }
 
@@ -263,7 +262,7 @@ public class SettingsTab
             _pluginInterface.UiBuilder.DisableCutsceneUiHide = !isChecked;
             _configuration.UISettings.HideWindowInCutscene = isChecked;
 
-            _configuration.Save();
+            _configurationService.Save(PluginConfigurationChange.Interface);
         }
     }
 
@@ -276,7 +275,7 @@ public class SettingsTab
         {
             _pluginInterface.UiBuilder.DisableUserUiHide = !isChecked;
             _configuration.UISettings.HideWindowWhenUiHidden = isChecked;
-            _configuration.Save();
+            _configurationService.Save(PluginConfigurationChange.Interface);
         }
     }
 
@@ -289,7 +288,7 @@ public class SettingsTab
         {
             _pluginInterface.UiBuilder.DisableGposeUiHide = !isChecked;
             _configuration.UISettings.HideWindowInGPose = isChecked;
-            _configuration.Save();
+            _configurationService.Save(PluginConfigurationChange.Interface);
         }
     }
 
@@ -301,7 +300,7 @@ public class SettingsTab
                 "Controls whether folders in template and profile lists are open by default or not.", ref isChecked))
         {
             _configuration.UISettings.FoldersDefaultOpen = isChecked;
-            _configuration.Save();
+            _configurationService.Save(PluginConfigurationChange.Interface);
         }
     }
 
@@ -313,7 +312,7 @@ public class SettingsTab
                 "Controls whether editor character will be automatically set to the current character during login.", ref isChecked))
         {
             _configuration.EditorConfiguration.SetPreviewToCurrentCharacterOnLogin = isChecked;
-            _configuration.Save();
+            _configurationService.Save(PluginConfigurationChange.Editor);
         }
     }
 
@@ -340,7 +339,7 @@ public class SettingsTab
         {
             _configuration.IntegrationSettings.PenumbraPCPIntegrationEnabled = isChecked;
             _pcpService.SetEnabled(isChecked);
-            _configuration.Save();
+            _configurationService.Save(PluginConfigurationChange.Integration);
         }
     }
 
@@ -371,7 +370,7 @@ public class SettingsTab
                 "Enables ability to edit the root bones.", ref isChecked))
         {
             _configuration.EditorConfiguration.RootPositionEditingEnabled = isChecked;
-            _configuration.Save();
+            _configurationService.Save(PluginConfigurationChange.Editor);
         }
     }
 
@@ -382,7 +381,7 @@ public class SettingsTab
                 "Enables debug mode. Requires plugin restart for all features to become properly initialized.", ref isChecked))
         {
             _configuration.DebuggingModeEnabled = isChecked;
-            _configuration.Save();
+            _configurationService.Save(PluginConfigurationChange.General);
         }
     }
 
@@ -421,7 +420,7 @@ public class SettingsTab
     /// <summary> Draw a button to open some url. </summary>
     private void DrawUrlButton(string text, string url, uint buttonColor, float width, string? description = null)
     {
-        using var color = ImRaii.PushColor(ImGuiCol.Button, buttonColor);
+        using var color = ImGuiColor.Button.Push(buttonColor);
         if (ImGui.Button(text, new Vector2(width, 0)))
             try
             {
@@ -436,7 +435,7 @@ public class SettingsTab
                 _messageService.NotificationMessage($"Unable to open url {url}.", NotificationType.Error, false);
             }
 
-        ImGuiUtil.HoverTooltip(description ?? $"Open {url}");
+        UiHelpers.DrawHoverTooltip(description ?? $"Open {url}");
     }
     #endregion
 }

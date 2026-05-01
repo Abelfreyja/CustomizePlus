@@ -1,7 +1,3 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using CustomizePlus.Armatures.Data;
 using CustomizePlus.Core.Extensions;
 using CustomizePlus.Core.Services;
@@ -9,7 +5,6 @@ using CustomizePlus.Profiles.Enums;
 using CustomizePlus.Templates.Data;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using OtterGui.Classes;
 using Penumbra.GameData.Actors;
 
 namespace CustomizePlus.Profiles.Data;
@@ -18,7 +13,7 @@ namespace CustomizePlus.Profiles.Data;
 ///     Encapsulates the user-controlled aspects of a character profile, ie all of
 ///     the information that gets saved to disk by the plugin.
 /// </summary>
-public sealed class Profile : ISavable
+public sealed class Profile : ISavable, IFileSystemValue<Profile>
 {
     public const int Version = 5;
 
@@ -59,6 +54,16 @@ public sealed class Profile : ISavable
     public string Incognito
         => UniqueId.ToString()[..8];
 
+    public string Identifier
+        => UniqueId.ToString();
+
+    public DataPath Path { get; } = new();
+
+    public IFileSystemData<Profile>? Node { get; set; }
+
+    string IFileSystemValue.DisplayName
+        => Name.Text;
+
     public Profile()
     {
         _localId = _nextGlobalId++;
@@ -90,7 +95,7 @@ public sealed class Profile : ISavable
 
     #region Serialization
 
-    public new JObject JsonSerialize()
+    public JObject JsonSerialize()
     {
         var ret = new JObject()
         {
@@ -153,11 +158,33 @@ public sealed class Profile : ISavable
             Formatting = Formatting.Indented,
         };
         var obj = JsonSerialize();
+        WriteFileSystemPath(obj);
         obj.WriteTo(j);
     }
 
     public string LogName(string fileName)
-        => Path.GetFileNameWithoutExtension(fileName);
+        => global::System.IO.Path.GetFileNameWithoutExtension(fileName);
 
     #endregion
+
+    internal static void ReadFileSystemPath(JObject obj, DataPath path)
+    {
+        if (obj["FileSystemPath"] is not JObject pathObj)
+            return;
+
+        path.Folder = pathObj["Folder"]?.ToObject<string>() ?? string.Empty;
+        path.SortName = pathObj["SortName"]?.ToObject<string>();
+    }
+
+    private void WriteFileSystemPath(JObject obj)
+    {
+        if (Path.IsDefault)
+            return;
+
+        obj["FileSystemPath"] = new JObject
+        {
+            ["Folder"] = Path.Folder,
+            ["SortName"] = Path.SortName,
+        };
+    }
 }

@@ -1,4 +1,5 @@
-﻿using CustomizePlus.Configuration.Data;
+using CustomizePlus.Configuration.Data;
+using CustomizePlus.Configuration.Services;
 using CustomizePlus.Core.Data;
 using CustomizePlus.Game.Services;
 using CustomizePlus.GameData.Extensions;
@@ -7,7 +8,6 @@ using CustomizePlus.Profiles.Enums;
 using CustomizePlus.Templates.Data;
 using CustomizePlus.Templates.Events;
 using Dalamud.Plugin.Services;
-using OtterGui.Log;
 using Penumbra.GameData.Actors;
 using System;
 using System.Collections.Generic;
@@ -24,6 +24,7 @@ public class TemplateEditorManager : IDisposable
     private readonly TemplateManager _templateManager;
     private readonly IClientState _clientState;
     private readonly PluginConfiguration _configuration;
+    private readonly ConfigurationService _configurationService;
 
     /// <summary>
     /// Reference to the original template which is currently being edited, should not be edited!
@@ -85,7 +86,8 @@ public class TemplateEditorManager : IDisposable
         TemplateManager templateManager,
         GameObjectService gameObjectService,
         IClientState clientState,
-        PluginConfiguration configuration)
+        PluginConfiguration configuration,
+        ConfigurationService configurationService)
     {
         _event = @event;
         _logger = logger;
@@ -93,6 +95,7 @@ public class TemplateEditorManager : IDisposable
         _gameObjectService = gameObjectService;
         _clientState = clientState;
         _configuration = configuration;
+        _configurationService = configurationService;
 
         _clientState.Login += OnLogin;
 
@@ -141,7 +144,7 @@ public class TemplateEditorManager : IDisposable
         HasChanges = false;
         IsEditorActive = true;
 
-        _event.Invoke(TemplateChanged.Type.EditorEnabled, template, Character);
+        _event.Invoke(new TemplateChanged.Arguments(TemplateChanged.Type.EditorEnabled, template, Character));
 
         return true;
     }
@@ -167,7 +170,7 @@ public class TemplateEditorManager : IDisposable
         IsEditorActive = false;
         HasChanges = false;
 
-        _event.Invoke(TemplateChanged.Type.EditorDisabled, template, (Character, hasChanges));
+        _event.Invoke(new TemplateChanged.Arguments(TemplateChanged.Type.EditorDisabled, template, (Character, hasChanges)));
 
         return true;
     }
@@ -214,9 +217,9 @@ public class TemplateEditorManager : IDisposable
         EditorProfile.Characters.Add(character);
 
         _configuration.EditorConfiguration.PreviewCharacter = character;
-        _configuration.Save();
+        _configurationService.Save(PluginConfigurationChange.Editor);
 
-        _event.Invoke(TemplateChanged.Type.EditorCharacterChanged, CurrentlyEditedTemplate, (character, EditorProfile));
+        _event.Invoke(new TemplateChanged.Arguments(TemplateChanged.Type.EditorCharacterChanged, CurrentlyEditedTemplate, (character, EditorProfile)));
 
         return true;
     }

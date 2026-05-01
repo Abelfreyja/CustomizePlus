@@ -1,20 +1,15 @@
-﻿using Dalamud.Plugin;
-using Dalamud.Plugin.Services;
-using Dalamud.Bindings.ImGui;
-using Newtonsoft.Json;
-using OtterGui.Raii;
-using System.Linq;
-using CustomizePlus.Profiles;
-using CustomizePlus.Game.Services;
-using Penumbra.GameData.Actors;
-using ECommonsLite.EzIpcManager;
-using System;
-using System.Collections.Generic;
-using OtterGui.Log;
-using CustomizePlus.Core.Extensions;
+﻿using CustomizePlus.Api.Data;
 using CustomizePlus.Configuration.Data;
-using CustomizePlus.Api.Data;
+using CustomizePlus.Core.Extensions;
+using CustomizePlus.Game.Services;
 using CustomizePlus.GameData.Extensions;
+using CustomizePlus.Profiles;
+using Dalamud.Bindings.ImGui;
+using Dalamud.Plugin;
+using Dalamud.Plugin.Services;
+using ECommonsLite.EzIpcManager;
+using Newtonsoft.Json;
+using Penumbra.GameData.Actors;
 using Penumbra.GameData.Interop;
 using Penumbra.GameData.Structs;
 
@@ -221,7 +216,7 @@ public class IPCTestTab //: IDisposable
             }
         }
 
-        using (var disabled = ImRaii.Disabled(_rememberedProfileJson == null))
+        using (var disabled = Im.Disabled(_rememberedProfileJson == null))
         {
             if (ImGui.Button("SetTemporaryProfileOnCharacter from memory") && _rememberedProfileJson != null)
             {

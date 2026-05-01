@@ -1,9 +1,7 @@
-﻿using System;
+using CustomizePlus.Game.Events;
 using Dalamud.Hooking;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
-using OtterGui.Log;
-using CustomizePlus.Game.Events;
 
 namespace CustomizePlus.Game.Services.GPose;
 
@@ -102,16 +100,16 @@ public class GPoseService : IDisposable
         switch (state)
         {
             case GPoseState.Inside:
-                _event.Invoke(GPoseStateChanged.Type.Entered);
+                _event.Invoke(new GPoseStateChanged.Arguments(GPoseStateChanged.Type.Entered));
                 break;
             case GPoseState.AttemptExit:
-                _event.Invoke(GPoseStateChanged.Type.AttemptingExit);
+                _event.Invoke(new GPoseStateChanged.Arguments(GPoseStateChanged.Type.AttemptingExit));
                 break;
             case GPoseState.Exiting:
-                _event.Invoke(GPoseStateChanged.Type.Exiting);
+                _event.Invoke(new GPoseStateChanged.Arguments(GPoseStateChanged.Type.Exiting));
                 break;
             case GPoseState.Outside:
-                _event.Invoke(GPoseStateChanged.Type.Exited);
+                _event.Invoke(new GPoseStateChanged.Arguments(GPoseStateChanged.Type.Exited));
                 break;
         }
 

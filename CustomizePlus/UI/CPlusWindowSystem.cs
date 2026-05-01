@@ -9,7 +9,7 @@ namespace CustomizePlus.UI;
 
 public class CPlusWindowSystem : IDisposable
 {
-    private readonly WindowSystem _windowSystem = new("Customize+");
+    private readonly Dalamud.Interface.Windowing.WindowSystem _windowSystem = new("Customize+");
     private readonly IUiBuilder _uiBuilder;
     private readonly MainWindow _mainWindow;
     private readonly PopupSystem _popupSystem;
@@ -44,8 +44,8 @@ public class CPlusWindowSystem : IDisposable
 
     public void Dispose()
     {
-        _uiBuilder.Draw -= _windowSystem.Draw;
+        _uiBuilder.Draw -= OnDraw;
         _uiBuilder.OpenMainUi -= _mainWindow.Toggle;
-        _uiBuilder.OpenConfigUi += _mainWindow.OpenSettings;
+        _uiBuilder.OpenConfigUi -= _mainWindow.OpenSettings;
     }
 }

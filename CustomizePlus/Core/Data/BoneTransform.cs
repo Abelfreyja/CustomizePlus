@@ -1,9 +1,7 @@
-using System;
-using System.Numerics;
-using System.Runtime.Serialization;
-using CustomizePlus.Core.Extensions;
+﻿using CustomizePlus.Core.Extensions;
 using CustomizePlus.Game.Services.GPose.ExternalTools;
 using FFXIVClientStructs.Havok.Common.Base.Math.QsTransform;
+using System.Runtime.Serialization;
 
 namespace CustomizePlus.Core.Data;
 

@@ -1,8 +1,7 @@
-﻿using CustomizePlus.Configuration.Data;
+using CustomizePlus.Configuration.Data;
 using CustomizePlus.Core.Helpers;
 using CustomizePlus.Core.Services;
 using CustomizePlus.Templates;
-using CustomizePlus.Templates.Data;
 using CustomizePlus.Templates.Events;
 using CustomizePlus.UI.Windows.Controls;
 using CustomizePlus.UI.Windows.MainWindow.Tabs;
@@ -15,13 +14,10 @@ using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
 using ECommonsLite.ImGuiMethods;
 using ECommonsLite.Schedulers;
-using OtterGui.Raii;
-using System;
-using System.Numerics;
 
 namespace CustomizePlus.UI.Windows.MainWindow;
 
-public class MainWindow : Window, IDisposable
+public class MainWindow : Dalamud.Interface.Windowing.Window, IDisposable
 {
     private readonly SettingsTab _settingsTab;
     private readonly TemplatesTab _templatesTab;
@@ -95,7 +91,7 @@ public class MainWindow : Window, IDisposable
     {
         var yPos = ImGui.GetCursorPosY();
 
-        using (var disabled = ImRaii.Disabled(_hookingService.RenderHookFailed || _hookingService.MovementHookFailed))
+        using (var disabled = Im.Disabled(_hookingService.RenderHookFailed || _hookingService.MovementHookFailed))
         {
             LockWindowClosureIfNeeded();
             ImGuiEx.EzTabBar("##tabs", null, _switchToTab, [
@@ -138,8 +134,9 @@ public class MainWindow : Window, IDisposable
         }
     }
 
-    private void OnTemplateEditorEvent(TemplateEditorEvent.Type type, Template? template)
+    private void OnTemplateEditorEvent(in TemplateEditorEvent.Arguments args)
     {
+        var (type, template) = args;
         if (type != TemplateEditorEvent.Type.EditorEnableRequested)
             return;
 
@@ -153,7 +150,7 @@ public class MainWindow : Window, IDisposable
                 _switchToTab = "Templates";
 
                 //To make sure the tab has switched, ugly but imgui is shit and I don't trust it.
-                _actionAfterTabSwitch = () => { _templateEditorEvent.Invoke(TemplateEditorEvent.Type.EditorEnableRequestedStage2, template); };
+                _actionAfterTabSwitch = () => { _templateEditorEvent.Invoke(new TemplateEditorEvent.Arguments(TemplateEditorEvent.Type.EditorEnableRequestedStage2, template)); };
             });
         }
     }

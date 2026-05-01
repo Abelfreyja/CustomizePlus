@@ -1,39 +1,28 @@
-﻿using CustomizePlus.Anamnesis;
+using CustomizePlus.Anamnesis;
 using CustomizePlus.Configuration.Data;
 using CustomizePlus.Configuration.Data.Version2;
 using CustomizePlus.Configuration.Data.Version3;
 using CustomizePlus.Configuration.Helpers;
+using CustomizePlus.Configuration.Services;
 using CustomizePlus.Core.Helpers;
 using CustomizePlus.Profiles;
-using CustomizePlus.Profiles.Data;
 using CustomizePlus.Profiles.Events;
 using CustomizePlus.Templates;
 using CustomizePlus.Templates.Data;
 using CustomizePlus.Templates.Events;
-using Dalamud.Bindings.ImGui;
+using CustomizePlus.UI.Windows.Controls;
 using Dalamud.Interface;
 using Dalamud.Interface.ImGuiFileDialog;
 using Dalamud.Interface.ImGuiNotification;
-using Dalamud.Plugin.Services;
 using Newtonsoft.Json;
-using OtterGui;
-using OtterGui.Classes;
-using OtterGui.Filesystem;
-using OtterGui.FileSystem.Selector;
-using OtterGui.Log;
-using OtterGui.Raii;
-using OtterGui.Text;
-using System;
-using System.IO;
-using System.Linq;
-using System.Numerics;
 using static CustomizePlus.UI.Windows.MainWindow.Tabs.Templates.TemplateFileSystemSelector;
 
 namespace CustomizePlus.UI.Windows.MainWindow.Tabs.Templates;
 
-public class TemplateFileSystemSelector : FileSystemSelector<Template, TemplateState>
+public class TemplateFileSystemSelector : CPlusFileSystemSelector<Template, TemplateState>
 {
     private readonly PluginConfiguration _configuration;
+    private readonly ConfigurationService _configurationService;
     private readonly TemplateEditorManager _editorManager;
     private readonly TemplateManager _templateManager;
     private readonly TemplateChanged _templateChangedEvent;
@@ -56,7 +45,7 @@ public class TemplateFileSystemSelector : FileSystemSelector<Template, TemplateS
         set
         {
             _configuration.UISettings.IncognitoMode = value;
-            _configuration.Save();
+            _configurationService.Save(PluginConfigurationChange.Interface);
         }
     }
 
@@ -65,35 +54,11 @@ public class TemplateFileSystemSelector : FileSystemSelector<Template, TemplateS
         public ColorId Color;
     }
 
-    protected override float CurrentWidth
-    	=> _configuration.UISettings.CurrentTemplateSelectorWidth * ImUtf8.GlobalScale;
-
-    protected override float MinimumAbsoluteRemainder
-        => 470 * ImUtf8.GlobalScale;
-
-    protected override float MinimumScaling
-        => _configuration.UISettings.TemplateSelectorMinimumScale;
-
-    protected override float MaximumScaling
-        => _configuration.UISettings.TemplateSelectorMaximumScale;
-
-    protected override void SetSize(Vector2 size)
-    {
-        base.SetSize(size);
-        var adaptedSize = MathF.Round(size.X / ImUtf8.GlobalScale);
-        if (adaptedSize == _configuration.UISettings.CurrentTemplateSelectorWidth)
-            return;
-
-        _configuration.UISettings.CurrentTemplateSelectorWidth = adaptedSize;
-        _configuration.Save();
-    }
-
-
     public TemplateFileSystemSelector(
         TemplateFileSystem fileSystem,
-        IKeyState keyState,
         Logger logger,
         PluginConfiguration configuration,
+        ConfigurationService configurationService,
         TemplateEditorManager editorManager,
         TemplateManager templateManager,
         TemplateChanged templateChangedEvent,
@@ -102,9 +67,10 @@ public class TemplateFileSystemSelector : FileSystemSelector<Template, TemplateS
         MessageService messageService,
         PoseFileBoneLoader poseFileBoneLoader,
         PopupSystem popupSystem)
-        : base(fileSystem, keyState, logger, allowMultipleSelection: true)
+        : base(messageService, fileSystem, nameof(TemplateFileSystemSelector))
     {
         _configuration = configuration;
+        _configurationService = configurationService;
         _editorManager = editorManager;
         _templateManager = templateManager;
         _templateChangedEvent = templateChangedEvent;
@@ -119,51 +85,46 @@ public class TemplateFileSystemSelector : FileSystemSelector<Template, TemplateS
         _templateChangedEvent.Subscribe(OnTemplateChange, TemplateChanged.Priority.TemplateFileSystemSelector);
         _profileChangedEvent.Subscribe(OnProfileChange, ProfileChanged.Priority.TemplateFileSystemSelector);
 
-        AddButton(NewButton, 0);
-        AddButton(AnamnesisImportButton, 10);
-        AddButton(ClipboardImportButton, 20);
-        AddButton(CloneButton, 30);
-        AddButton(DeleteButton, 1000);
+        AddButton(FontAwesomeIcon.Plus, () => "Create a new template with default configuration.", () => false, NewButton, 0);
+        AddButton(FontAwesomeIcon.FileImport, () => "Import a template from anamnesis pose file (scaling only)", () => false, AnamnesisImportButton, 10);
+        AddButton(FontAwesomeIcon.Clipboard, () => "Try to import a template from your clipboard.", () => false, ClipboardImportButton, 20);
+        AddButton(FontAwesomeIcon.Clone, CloneTooltip, () => Selected is null, CloneButton, 30);
+        AddButton(FontAwesomeIcon.Trash, () => DeleteSelectionTooltip(_configuration.UISettings.DeleteTemplateModifier, "template"), DeleteDisabled, DeleteButton, 1000);
         SetFilterTooltip();
     }
 
-    public void Dispose()
+    public override void Dispose()
     {
         base.Dispose();
         _templateChangedEvent.Unsubscribe(OnTemplateChange);
         _profileChangedEvent.Unsubscribe(OnProfileChange);
     }
 
-    protected override uint ExpandedFolderColor
+    protected override uint ExpandedFolderColorValue
         => ColorId.FolderExpanded.Value();
 
-    protected override uint CollapsedFolderColor
+    protected override uint CollapsedFolderColorValue
         => ColorId.FolderCollapsed.Value();
-
-    protected override uint FolderLineColor
-        => ColorId.FolderLine.Value();
 
     protected override bool FoldersDefaultOpen
         => _configuration.UISettings.FoldersDefaultOpen;
 
-    protected override void DrawLeafName(FileSystem<Template>.Leaf leaf, in TemplateState state, bool selected)
+    protected override void DrawLeafName(IFileSystemData<Template> node, in TemplateState state, bool selected)
     {
-        var flag = selected ? ImGuiTreeNodeFlags.Selected | LeafFlags : LeafFlags;
-        var name = IncognitoMode ? leaf.Value.Incognito : leaf.Value.Name.Text;
-        using var color = ImRaii.PushColor(ImGuiCol.Text, state.Color.Value());
-        using var _ = ImUtf8.TreeNode(name, flag);
+        var flag = selected ? TreeNodeFlags.Selected | LeafFlags : LeafFlags;
+        var name = IncognitoMode ? node.Value.Incognito : node.Value.Name.Text;
+        using var color = ImGuiColor.Text.Push(state.Color.Value());
+        DrawLeafTreeNode(node, flag, name);
     }
 
-    protected override void Select(FileSystem<Template>.Leaf? leaf, bool clear, in TemplateState storage = default)
+    protected override bool CanChangeSelection(IFileSystemData<Template>? node)
     {
-        if (_editorManager.IsEditorActive)
-        {
-            Plugin.Logger.Debug("Blocked edited item change");
-            ShowEditorWarningPopup();
-            return;
-        }
+        if (!_editorManager.IsEditorActive || ReferenceEquals(node?.Value, Selected))
+            return true;
 
-        base.Select(leaf, clear, storage);
+        Plugin.Logger.Debug("Blocked edited item change");
+        ShowEditorWarningPopup();
+        return false;
     }
 
     protected override void DrawPopups()
@@ -181,7 +142,7 @@ public class TemplateFileSystemSelector : FileSystemSelector<Template, TemplateS
 
     private void DrawNewTemplatePopup()
     {
-        if (!ImGuiUtil.OpenNameField("##NewTemplate", ref _newName))
+        if (!UiHelpers.DrawNamePopup("##NewTemplate", ref _newName))
             return;
 
         try
@@ -258,8 +219,9 @@ public class TemplateFileSystemSelector : FileSystemSelector<Template, TemplateS
         return null;
     }
 
-    private void OnTemplateChange(TemplateChanged.Type type, Template? nullable, object? arg3 = null)
+    private void OnTemplateChange(in TemplateChanged.Arguments args)
     {
+        var (type, nullable, arg3) = args;
         switch (type)
         {
             case TemplateChanged.Type.Created:
@@ -271,8 +233,9 @@ public class TemplateFileSystemSelector : FileSystemSelector<Template, TemplateS
         }
     }
 
-    private void OnProfileChange(ProfileChanged.Type type, Profile? profile, object? arg3 = null)
+    private void OnProfileChange(in ProfileChanged.Arguments args)
     {
+        var (type, profile, arg3) = args;
         switch (type)
         {
             case ProfileChanged.Type.Created:
@@ -286,27 +249,19 @@ public class TemplateFileSystemSelector : FileSystemSelector<Template, TemplateS
         }
     }
 
-    private void NewButton(Vector2 size)
+    private void NewButton()
     {
-        if (!ImGuiUtil.DrawDisabledButton(FontAwesomeIcon.Plus.ToIconString(), size, "Create a new template with default configuration.", false,
-                true))
-            return;
-
         if (_editorManager.IsEditorActive)
         {
             ShowEditorWarningPopup();
             return;
         }
 
-        ImGui.OpenPopup("##NewTemplate");
+        OpenSelectorPopup("##NewTemplate");
     }
 
-    private void ClipboardImportButton(Vector2 size)
+    private void ClipboardImportButton()
     {
-        if (!ImGuiUtil.DrawDisabledButton(FontAwesomeIcon.Clipboard.ToIconString(), size, "Try to import a template from your clipboard.", false,
-                true))
-            return;
-
         if (_editorManager.IsEditorActive)
         {
             ShowEditorWarningPopup();
@@ -315,8 +270,8 @@ public class TemplateFileSystemSelector : FileSystemSelector<Template, TemplateS
 
         try
         {
-            _clipboardText = ImUtf8.GetClipboardText();
-            ImGui.OpenPopup("##NewTemplate");
+            _clipboardText = Im.Clipboard.GetUtf16();
+            OpenSelectorPopup("##NewTemplate");
         }
         catch
         {
@@ -324,12 +279,8 @@ public class TemplateFileSystemSelector : FileSystemSelector<Template, TemplateS
         }
     }
 
-    private void AnamnesisImportButton(Vector2 size)
+    private void AnamnesisImportButton()
     {
-        if (!ImGuiUtil.DrawDisabledButton(FontAwesomeIcon.FileImport.ToIconString(), size, "Import a template from anamnesis pose file (scaling only)", false,
-                true))
-            return;
-
         if (_editorManager.IsEditorActive)
         {
             ShowEditorWarningPopup();
@@ -341,7 +292,8 @@ public class TemplateFileSystemSelector : FileSystemSelector<Template, TemplateS
             if (isSuccess)
             {
                 var selectedFilePath = path.FirstOrDefault();
-                //todo: check for selectedFilePath == null?
+                if (selectedFilePath is null)
+                    return;
 
                 var bones = _poseFileBoneLoader.LoadBoneTransformsFromFile(selectedFilePath);
 
@@ -373,14 +325,13 @@ public class TemplateFileSystemSelector : FileSystemSelector<Template, TemplateS
         //todo: message dialog?
     }
 
-    private void CloneButton(Vector2 size)
-    {
-        var tt = SelectedLeaf == null
+    private string CloneTooltip()
+        => Selected is null
             ? "No template selected."
             : "Clone the currently selected template to a duplicate";
-        if (!ImGuiUtil.DrawDisabledButton(FontAwesomeIcon.Clone.ToIconString(), size, tt, SelectedLeaf == null, true))
-            return;
 
+    private void CloneButton()
+    {
         if (_editorManager.IsEditorActive)
         {
             ShowEditorWarningPopup();
@@ -388,11 +339,14 @@ public class TemplateFileSystemSelector : FileSystemSelector<Template, TemplateS
         }
 
         _cloneTemplate = Selected!;
-        ImGui.OpenPopup("##NewTemplate");
+        OpenSelectorPopup("##NewTemplate");
     }
 
-    private void DeleteButton(Vector2 size)
-        => DeleteSelectionButton(size, _configuration.UISettings.DeleteTemplateModifier, "template", "templates", (template) =>
+    private bool DeleteDisabled()
+        => Selected is null || !_configuration.UISettings.DeleteTemplateModifier.IsActive();
+
+    private void DeleteButton()
+        => DeleteSelection(_configuration.UISettings.DeleteTemplateModifier, "template", template =>
         {
             if (_editorManager.IsEditorActive)
             {
@@ -440,35 +394,39 @@ public class TemplateFileSystemSelector : FileSystemSelector<Template, TemplateS
     /// If any filter is set, they should be hidden by default unless their children are visible,
     /// or they contain the path search string.
     /// </summary>
-    protected override bool ApplyFiltersAndState(FileSystem<Template>.IPath path, out TemplateState state)
+    protected override bool ApplyFiltersAndState(IFileSystemNode node, out TemplateState state)
     {
-        if (path is TemplateFileSystem.Folder f)
+        if (node is IFileSystemFolder folder)
         {
             state = default;
-            return FilterValue.Length > 0 && !f.FullName().Contains(FilterValue, IgnoreCase);
+            return FilterValue.Length > 0 && !folder.FullPath.Contains(FilterValue, IgnoreCase);
         }
 
-        return ApplyFiltersAndState((TemplateFileSystem.Leaf)path, out state);
+        if (node is IFileSystemData<Template> data)
+            return ApplyFiltersAndState(data, out state);
+
+        state = default;
+        return true;
     }
 
     /// <summary> Apply the string filters. </summary>
-    private bool ApplyStringFilters(TemplateFileSystem.Leaf leaf, Template template)
+    private bool ApplyStringFilters(IFileSystemData<Template> node, Template template)
     {
         return _filterType switch
         {
             -1 => false,
-            0 => !(_filter.IsContained(leaf.FullName()) || template.Name.Contains(_filter)),
+            0 => !(_filter.IsContained(node.FullPath) || template.Name.Contains(_filter)),
             1 => !template.Name.Contains(_filter),
             _ => false, // Should never happen
         };
     }
 
     /// <summary> Combined wrapper for handling all filters and setting state. </summary>
-    private bool ApplyFiltersAndState(TemplateFileSystem.Leaf leaf, out TemplateState state)
+    private bool ApplyFiltersAndState(IFileSystemData<Template> node, out TemplateState state)
     {
         //todo: more efficient to store links to profiles in templates than iterating here
-        state.Color = _profileManager.GetProfilesUsingTemplate(leaf.Value).Any() ? ColorId.UsedTemplate : ColorId.UnusedTemplate;
-        return ApplyStringFilters(leaf, leaf.Value);
+        state.Color = _profileManager.GetProfilesUsingTemplate(node.Value).Any() ? ColorId.UsedTemplate : ColorId.UnusedTemplate;
+        return ApplyStringFilters(node, node.Value);
     }
 
     #endregion

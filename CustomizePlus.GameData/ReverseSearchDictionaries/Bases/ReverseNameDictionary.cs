@@ -1,6 +1,5 @@
 ﻿using Dalamud.Plugin.Services;
 using Dalamud.Plugin;
-using OtterGui.Log;
 using Penumbra.GameData.Data;
 using Penumbra.GameData.DataContainers.Bases;
 using Penumbra.GameData.Structs;

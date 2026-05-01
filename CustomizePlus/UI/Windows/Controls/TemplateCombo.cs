@@ -1,42 +1,34 @@
-﻿using Dalamud.Interface.Utility;
-using Dalamud.Bindings.ImGui;
-using OtterGui.Classes;
-using OtterGui.Log;
-using OtterGui.Widgets;
-using OtterGui.Extensions;
-using OtterGui;
-using OtterGui.Raii;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using CustomizePlus.Templates;
 using CustomizePlus.Configuration.Data;
 using CustomizePlus.Profiles;
 using CustomizePlus.Profiles.Data;
-using CustomizePlus.Templates.Events;
+using CustomizePlus.Templates;
 using CustomizePlus.Templates.Data;
+using CustomizePlus.Templates.Events;
+using CustomizePlus.UI;
+using Dalamud.Bindings.ImGui;
+using ImSharp;
 
 namespace CustomizePlus.UI.Windows.Controls;
 
-public abstract class TemplateComboBase : FilterComboCache<Tuple<Template, string>>, IDisposable
+public abstract class TemplateComboBase : SimpleFilterCombo<Tuple<Template, string>>, IDisposable
 {
+    private readonly Func<IReadOnlyList<Tuple<Template, string>>> _generator;
     private readonly PluginConfiguration _configuration;
     private readonly TemplateChanged _templateChanged;
     // protected readonly TabSelected TabSelected;
 
-    private bool _isCurrentSelectionDirty;
     private Template? _currentTemplate;
 
-    protected float InnerWidth;
+    protected Tuple<Template, string>? CurrentSelection;
 
     protected TemplateComboBase(
         Func<IReadOnlyList<Tuple<Template, string>>> generator,
-        Logger logger,
         TemplateChanged templateChanged,
         //TabSelected tabSelected,
         PluginConfiguration configuration)
-        : base(generator, MouseWheelType.Control, logger)
+        : base(SimpleFilterType.Partwise)
     {
+        _generator = generator;
         _templateChanged = templateChanged;
         //TabSelected = tabSelected;
         _configuration = configuration;
@@ -49,17 +41,29 @@ public abstract class TemplateComboBase : FilterComboCache<Tuple<Template, strin
     void IDisposable.Dispose()
         => _templateChanged.Unsubscribe(OnTemplateChange);
 
-    protected override bool DrawSelectable(int globalIdx, bool selected)
-    {
-        var (template, path) = Items[globalIdx];
-        bool ret;
+    public override StringU8 DisplayString(in Tuple<Template, string> value)
+        => new(value.Item1.Name.Text);
 
-        using var color = ImRaii.PushColor(ImGuiCol.Text, ColorId.UsedTemplate.Value());
-        ret = base.DrawSelectable(globalIdx, selected);
-        DrawPath(path, template);
+    public override string FilterString(in Tuple<Template, string> value)
+        => $"{value.Item2}\0{value.Item1.Name.Lower}";
+
+    public override ColorParameter TextColor(in Tuple<Template, string> value)
+        => ColorId.UsedTemplate.Value();
+
+    public override IEnumerable<Tuple<Template, string>> GetBaseItems()
+        => _generator();
+
+    protected override bool DrawItem(in SimpleCacheItem<Tuple<Template, string>> item, int globalIndex, bool selected)
+    {
+        using var color = Im.Color.Push(ImGuiColor.Text, item.TextColor);
+        var ret = Im.Selectable(item.DisplayString, selected);
+        DrawPath(item.Item.Item2, item.Item.Item1);
 
         return ret;
     }
+
+    protected override bool IsSelected(SimpleCacheItem<Tuple<Template, string>> item, int globalIndex)
+        => ReferenceEquals(item.Item.Item1, _currentTemplate);
 
     private static void DrawPath(string path, Template template)
     {
@@ -72,89 +76,20 @@ public abstract class TemplateComboBase : FilterComboCache<Tuple<Template, strin
     protected bool Draw(Template? currentTemplate, string? label, float width)
     {
         _currentTemplate = currentTemplate;
-        UpdateCurrentSelection();
-
-        InnerWidth = 400 * ImGuiHelpers.GlobalScale;
-
-        if(Items.Count > 0)
-        {
-            CurrentSelectionIdx = Math.Max(Items.IndexOf(p => currentTemplate == p.Item1), 0);
-            CurrentSelection = Items[CurrentSelectionIdx];
-        }
-
         var name = label ?? "Select Template Here...";
-        var ret = Draw("##template", name, string.Empty, width, ImGui.GetTextLineHeightWithSpacing())
-         && CurrentSelection != null;
+        var ret = base.Draw("##template", name, string.Empty, width, out var selection);
+        CurrentSelection = selection?.Item;
 
         _currentTemplate = null;
 
         return ret;
     }
 
-    protected override void OnMouseWheel(string preview, ref int _2, int steps)
+    private void OnTemplateChange(in TemplateChanged.Arguments args)
     {
-        if (!ReferenceEquals(_currentTemplate, CurrentSelection?.Item1))
-            CurrentSelectionIdx = -1;
-
-        base.OnMouseWheel(preview, ref _2, steps);
-    }
-
-    private void UpdateCurrentSelection()
-    {
-        if (!_isCurrentSelectionDirty)
-            return;
-
-        var priorState = IsInitialized;
-        if (priorState)
-            Cleanup();
-        CurrentSelectionIdx = Items.IndexOf(s => ReferenceEquals(s.Item1, CurrentSelection?.Item1));
-        if (CurrentSelectionIdx >= 0)
-        {
-            UpdateSelection(Items[CurrentSelectionIdx]);
-        }
-        else if (Items.Count > 0)
-        {
-            CurrentSelectionIdx = 0;
-            UpdateSelection(Items[0]);
-        }
-        else
-        {
-            UpdateSelection(null);
-        }
-
-        if (!priorState)
-            Cleanup();
-        _isCurrentSelectionDirty = false;
-    }
-
-    protected override int UpdateCurrentSelected(int currentSelected)
-    {
-        CurrentSelectionIdx = Items.IndexOf(p => _currentTemplate == p.Item1);
-        UpdateSelection(CurrentSelectionIdx >= 0 ? Items[CurrentSelectionIdx] : null);
-        return CurrentSelectionIdx;
-    }
-
-    protected override string ToString(Tuple<Template, string> obj)
-        => obj.Item1.Name.Text;
-
-    protected override float GetFilterWidth()
-        => InnerWidth - 2 * ImGui.GetStyle().FramePadding.X;
-
-    protected override bool IsVisible(int globalIndex, LowerString filter)
-    {
-        var (design, path) = Items[globalIndex];
-        return filter.IsContained(path) || design.Name.Lower.Contains(filter.Lower);
-    }
-
-    private void OnTemplateChange(TemplateChanged.Type type, Template template, object? data = null)
-    {
-        _isCurrentSelectionDirty = type switch
-        {
-            TemplateChanged.Type.Created => true,
-            TemplateChanged.Type.Renamed => true,
-            TemplateChanged.Type.Deleted => true,
-            _ => _isCurrentSelectionDirty,
-        };
+        var type = args.Type;
+        if (type is TemplateChanged.Type.Created or TemplateChanged.Type.Renamed or TemplateChanged.Type.Deleted)
+            CacheManager.Instance.SetDirty(CurrentId);
     }
 
     private static void DrawRightAligned(string leftText, string text, uint color)
@@ -169,7 +104,7 @@ public abstract class TemplateComboBase : FilterComboCache<Tuple<Template, strin
             offset -= ImGui.GetStyle().ItemInnerSpacing.X;
 
         if (offset < ImGui.GetStyle().ItemSpacing.X)
-            ImGuiUtil.HoverTooltip(text);
+            UiHelpers.DrawHoverTooltip(text);
         else
             ImGui.GetWindowDrawList().AddText(start with { X = pos + offset },
                 color, text);
@@ -183,16 +118,14 @@ public sealed class TemplateCombo : TemplateComboBase
     public TemplateCombo(
         TemplateManager templateManager,
         ProfileManager profileManager,
-        TemplateFileSystem fileSystem,
-        Logger logger,
         TemplateChanged templateChanged,
         //TabSelected tabSelected,
         PluginConfiguration configuration)
         : base(
             () => templateManager.Templates
-                .Select(d => new Tuple<Template, string>(d, fileSystem.TryGetValue(d, out var l) ? l.FullName() : string.Empty))
+                .Select(d => new Tuple<Template, string>(d, d.Node?.FullPath ?? string.Empty))
                 .OrderBy(d => d.Item2)
-                .ToList(), logger, templateChanged,/* tabSelected, */configuration)
+                .ToList(), templateChanged,/* tabSelected, */configuration)
     {
         _profileManager = profileManager;
     }

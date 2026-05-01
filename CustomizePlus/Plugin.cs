@@ -3,13 +3,9 @@ using CustomizePlus.Armatures.Data;
 using CustomizePlus.Core;
 using CustomizePlus.Core.Helpers;
 using CustomizePlus.Core.Services;
-using CustomizePlus.UI;
 using Dalamud.Plugin;
 using ECommonsLite;
-using OtterGui.Log;
-using OtterGui.Services;
 using Penumbra.GameData.Actors;
-using System;
 
 namespace CustomizePlus;
 

@@ -1,9 +1,7 @@
 ﻿using Dalamud.Plugin;
 using Newtonsoft.Json.Linq;
-using OtterGui.Log;
 using Penumbra.Api.Helpers;
 using Penumbra.Api.IpcSubscribers;
-using System;
 
 namespace CustomizePlus.Interop.Ipc;
 

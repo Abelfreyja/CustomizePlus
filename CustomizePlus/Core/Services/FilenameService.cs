@@ -1,29 +1,27 @@
-﻿using Dalamud.Plugin;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using CustomizePlus.Profiles.Data;
+﻿using CustomizePlus.Profiles.Data;
+using Dalamud.Plugin;
 
 namespace CustomizePlus.Core.Services;
 
-public class FilenameService
+public class FilenameService(IDalamudPluginInterface pi) : BaseFilePathProvider(pi)
 {
-    public readonly string ConfigDirectory;
-    public readonly string ConfigFile;
-    public readonly string ProfileDirectory;
-    public readonly string ProfileFileSystem;
-    public readonly string TemplateDirectory;
-    public readonly string TemplateFileSystem;
+    public new readonly string ConfigDirectory = pi.ConfigDirectory.FullName;
+    public new readonly string ConfigFile = pi.ConfigFile.FullName;
+    public readonly string ProfileDirectory = Path.Combine(pi.ConfigDirectory.FullName, "profiles");
+    public readonly string LegacyProfileSortOrder = Path.Combine(pi.ConfigDirectory.FullName, "profile_sort_order.json");
+    public readonly string ProfileOrganization = Path.Combine(pi.ConfigDirectory.FullName, "profile_organization.json");
+    public readonly string ProfileLockedNodes = Path.Combine(pi.ConfigDirectory.FullName, "profile_locked_nodes.json");
+    public readonly string ProfileSelectedNodes = Path.Combine(pi.ConfigDirectory.FullName, "profile_selected_nodes.json");
+    public readonly string ProfileExpandedFolders = Path.Combine(pi.ConfigDirectory.FullName, "profile_expanded_folders.json");
+    public readonly string TemplateDirectory = Path.Combine(pi.ConfigDirectory.FullName, "templates");
+    public readonly string LegacyTemplateSortOrder = Path.Combine(pi.ConfigDirectory.FullName, "template_sort_order.json");
+    public readonly string TemplateOrganization = Path.Combine(pi.ConfigDirectory.FullName, "template_organization.json");
+    public readonly string TemplateLockedNodes = Path.Combine(pi.ConfigDirectory.FullName, "template_locked_nodes.json");
+    public readonly string TemplateSelectedNodes = Path.Combine(pi.ConfigDirectory.FullName, "template_selected_nodes.json");
+    public readonly string TemplateExpandedFolders = Path.Combine(pi.ConfigDirectory.FullName, "template_expanded_folders.json");
 
-    public FilenameService(IDalamudPluginInterface pi)
-    {
-        ConfigDirectory = pi.ConfigDirectory.FullName;
-        ConfigFile = pi.ConfigFile.FullName;
-        ProfileDirectory = Path.Combine(ConfigDirectory, "profiles");
-        ProfileFileSystem = Path.Combine(ConfigDirectory, "profile_sort_order.json");
-        TemplateDirectory = Path.Combine(ConfigDirectory, "templates");
-        TemplateFileSystem = Path.Combine(ConfigDirectory, "template_sort_order.json");
-    }
+    public override List<FileInfo> GetBackupFiles()
+        => [];
 
     public IEnumerable<FileInfo> Templates()
     {

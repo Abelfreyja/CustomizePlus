@@ -1,29 +1,22 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using OtterGui.Log;
-using OtterGui.Filesystem;
-using Penumbra.GameData.Actors;
-using CustomizePlus.Core.Services;
-using CustomizePlus.Core.Helpers;
 using CustomizePlus.Armatures.Events;
 using CustomizePlus.Configuration.Data;
-using CustomizePlus.Armatures.Data;
+using CustomizePlus.Configuration.Services;
 using CustomizePlus.Core.Events;
-using CustomizePlus.Templates;
-using CustomizePlus.Profiles.Data;
-using CustomizePlus.Templates.Events;
-using CustomizePlus.Profiles.Events;
-using CustomizePlus.Templates.Data;
+using CustomizePlus.Core.Helpers;
+using CustomizePlus.Core.Services;
+using CustomizePlus.Game.Services;
 using CustomizePlus.GameData.Data;
 using CustomizePlus.GameData.Extensions;
+using CustomizePlus.Profiles.Data;
 using CustomizePlus.Profiles.Enums;
+using CustomizePlus.Profiles.Events;
 using CustomizePlus.Profiles.Exceptions;
+using CustomizePlus.Templates;
+using CustomizePlus.Templates.Data;
+using CustomizePlus.Templates.Events;
+using Penumbra.GameData.Actors;
 using Penumbra.GameData.Enums;
 using Penumbra.GameData.Interop;
-using CustomizePlus.Game.Services;
-using OtterGui.Classes;
 
 namespace CustomizePlus.Profiles;
 
@@ -37,6 +30,7 @@ public partial class ProfileManager : IDisposable
     private readonly SaveService _saveService;
     private readonly Logger _logger;
     private readonly PluginConfiguration _configuration;
+    private readonly ConfigurationService _configurationService;
     private readonly ActorManager _actorManager;
     private readonly GameObjectService _gameObjectService;
     private readonly ActorObjectManager _objectManager;
@@ -58,6 +52,7 @@ public partial class ProfileManager : IDisposable
         SaveService saveService,
         Logger logger,
         PluginConfiguration configuration,
+        ConfigurationService configurationService,
         ActorManager actorManager,
         GameObjectService gameObjectService,
         ActorObjectManager objectManager,
@@ -73,6 +68,7 @@ public partial class ProfileManager : IDisposable
         _saveService = saveService;
         _logger = logger;
         _configuration = configuration;
+        _configurationService = configurationService;
         _actorManager = actorManager;
         _gameObjectService = gameObjectService;
         _objectManager = objectManager;
@@ -120,7 +116,7 @@ public partial class ProfileManager : IDisposable
 
         _saveService.ImmediateSave(profile);
 
-        _event.Invoke(ProfileChanged.Type.Created, profile, path);
+        _event.Invoke(new ProfileChanged.Arguments(ProfileChanged.Type.Created, profile, path));
 
         return profile;
     }
@@ -146,7 +142,7 @@ public partial class ProfileManager : IDisposable
 
         _saveService.ImmediateSave(profile);
 
-        _event.Invoke(ProfileChanged.Type.Created, profile, path);
+        _event.Invoke(new ProfileChanged.Arguments(ProfileChanged.Type.Created, profile, path));
 
         return profile;
     }
@@ -167,7 +163,7 @@ public partial class ProfileManager : IDisposable
         SaveProfile(profile);
 
         _logger.Debug($"Renamed profile {profile.UniqueId}.");
-        _event.Invoke(ProfileChanged.Type.Renamed, profile, oldName);
+        _event.Invoke(new ProfileChanged.Arguments(ProfileChanged.Type.Renamed, profile, oldName));
     }
 
     /// <summary>
@@ -183,7 +179,7 @@ public partial class ProfileManager : IDisposable
         SaveProfile(profile);
 
         _logger.Debug($"Add character for profile {profile.UniqueId}.");
-        _event.Invoke(ProfileChanged.Type.AddedCharacter, profile, actorIdentifier);
+        _event.Invoke(new ProfileChanged.Arguments(ProfileChanged.Type.AddedCharacter, profile, actorIdentifier));
 
         return true;
     }
@@ -201,7 +197,7 @@ public partial class ProfileManager : IDisposable
         SaveProfile(profile);
 
         _logger.Debug($"Removed character from profile {profile.UniqueId}.");
-        _event.Invoke(ProfileChanged.Type.RemovedCharacter, profile, actorIdentifier);
+        _event.Invoke(new ProfileChanged.Arguments(ProfileChanged.Type.RemovedCharacter, profile, actorIdentifier));
 
         return true;
     }
@@ -214,7 +210,7 @@ public partial class ProfileManager : IDisposable
     {
         Profiles.Remove(profile);
         _saveService.ImmediateDelete(profile);
-        _event.Invoke(ProfileChanged.Type.Deleted, profile, null);
+        _event.Invoke(new ProfileChanged.Arguments(ProfileChanged.Type.Deleted, profile, null));
     }
 
     /// <summary>
@@ -230,7 +226,7 @@ public partial class ProfileManager : IDisposable
         SaveProfile(profile);
 
         _logger.Debug($"Set profile {profile.UniqueId} to {(value ? string.Empty : "no longer be ")} write-protected.");
-        _event.Invoke(ProfileChanged.Type.WriteProtection, profile, value);
+        _event.Invoke(new ProfileChanged.Arguments(ProfileChanged.Type.WriteProtection, profile, value));
     }
 
     public void SetEnabled(Profile profile, bool value, bool force = false)
@@ -242,7 +238,7 @@ public partial class ProfileManager : IDisposable
 
         SaveProfile(profile);
 
-        _event.Invoke(ProfileChanged.Type.Toggled, profile, value);
+        _event.Invoke(new ProfileChanged.Arguments(ProfileChanged.Type.Toggled, profile, value));
     }
     
     public void SetEnabled(Guid profileId, bool value)
@@ -277,7 +273,7 @@ public partial class ProfileManager : IDisposable
 
         SaveProfile(profile);
 
-        _event.Invoke(ProfileChanged.Type.PriorityChanged, profile, value);
+        _event.Invoke(new ProfileChanged.Arguments(ProfileChanged.Type.PriorityChanged, profile, value));
     }
 
     public void DeleteTemplate(Profile profile, int templateIndex)
@@ -289,7 +285,7 @@ public partial class ProfileManager : IDisposable
 
         SaveProfile(profile);
 
-        _event.Invoke(ProfileChanged.Type.RemovedTemplate, profile, template);
+        _event.Invoke(new ProfileChanged.Arguments(ProfileChanged.Type.RemovedTemplate, profile, template));
     }
 
     public void AddTemplate(Profile profile, Template template)
@@ -303,7 +299,7 @@ public partial class ProfileManager : IDisposable
 
         _logger.Debug($"Added template: {template.UniqueId} to {profile.UniqueId}");
 
-        _event.Invoke(ProfileChanged.Type.AddedTemplate, profile, template);
+        _event.Invoke(new ProfileChanged.Arguments(ProfileChanged.Type.AddedTemplate, profile, template));
     }
 
     public void ChangeTemplate(Profile profile, int index, Template newTemplate)
@@ -320,7 +316,7 @@ public partial class ProfileManager : IDisposable
         SaveProfile(profile);
 
         _logger.Debug($"Changed template on profile {profile.UniqueId} from {oldTemplate.UniqueId} to {newTemplate.UniqueId}");
-        _event.Invoke(ProfileChanged.Type.ChangedTemplate, profile, (index, oldTemplate, newTemplate));
+        _event.Invoke(new ProfileChanged.Arguments(ProfileChanged.Type.ChangedTemplate, profile, (index, oldTemplate, newTemplate)));
     }
 
     public void MoveTemplate(Profile profile, int fromIndex, int toIndex)
@@ -331,7 +327,7 @@ public partial class ProfileManager : IDisposable
         SaveProfile(profile);
 
         _logger.Debug($"Moved template {fromIndex + 1} to position {toIndex + 1}.");
-        _event.Invoke(ProfileChanged.Type.MovedTemplate, profile, (fromIndex, toIndex));
+        _event.Invoke(new ProfileChanged.Arguments(ProfileChanged.Type.MovedTemplate, profile, (fromIndex, toIndex)));
     }
 
     public void ToggleTemplate(Profile profile, int index)
@@ -351,7 +347,7 @@ public partial class ProfileManager : IDisposable
         SaveProfile(profile);
 
         _logger.Debug($"Toggled template {template.UniqueId} on profile {profile.UniqueId}");
-        _event.Invoke(eventType, profile, template);
+        _event.Invoke(new ProfileChanged.Arguments(eventType, profile, template));
     }
 
     public bool EnableTemplate(Profile profile, Guid templateId)
@@ -371,7 +367,7 @@ public partial class ProfileManager : IDisposable
 
         SaveProfile(profile);
         _logger.Debug($"Enable template {templateId} on profile {profile.UniqueId}");
-        _event.Invoke(ProfileChanged.Type.EnabledTemplate, profile, template);
+        _event.Invoke(new ProfileChanged.Arguments(ProfileChanged.Type.EnabledTemplate, profile, template));
         return true;
     }
 
@@ -392,7 +388,7 @@ public partial class ProfileManager : IDisposable
 
         SaveProfile(profile);
         _logger.Debug($"Disable template {templateId} on profile {profile.UniqueId}");
-        _event.Invoke(ProfileChanged.Type.DisabledTemplate, profile, template);
+        _event.Invoke(new ProfileChanged.Arguments(ProfileChanged.Type.DisabledTemplate, profile, template));
         return true;
     }
 
@@ -410,10 +406,10 @@ public partial class ProfileManager : IDisposable
 
         DefaultProfile = profile;
         _configuration.DefaultProfile = profile?.UniqueId ?? Guid.Empty;
-        _configuration.Save();
+        _configurationService.Save(PluginConfigurationChange.General);
 
         _logger.Debug($"Set profile {profile?.Incognito ?? "no profile"} as default");
-        _event.Invoke(ProfileChanged.Type.ChangedDefaultProfile, profile, previousProfile);
+        _event.Invoke(new ProfileChanged.Arguments(ProfileChanged.Type.ChangedDefaultProfile, profile, previousProfile));
     }
 
     public void SetDefaultLocalPlayerProfile(Profile? profile)
@@ -430,10 +426,10 @@ public partial class ProfileManager : IDisposable
 
         DefaultLocalPlayerProfile = profile;
         _configuration.DefaultLocalPlayerProfile = profile?.UniqueId ?? Guid.Empty;
-        _configuration.Save();
+        _configurationService.Save(PluginConfigurationChange.General);
 
         _logger.Debug($"Set profile {profile?.Incognito ?? "no profile"} as default local player profile");
-        _event.Invoke(ProfileChanged.Type.ChangedDefaultLocalPlayerProfile, profile, previousProfile);
+        _event.Invoke(new ProfileChanged.Arguments(ProfileChanged.Type.ChangedDefaultLocalPlayerProfile, profile, previousProfile));
     }
 
     //warn: temporary profile system does not support any world identifiers
@@ -455,13 +451,13 @@ public partial class ProfileManager : IDisposable
         {
             _logger.Debug($"Temporary profile for {permanentIdentifier.Incognito(null)} already exists, removing...");
             Profiles.Remove(existingProfile);
-            _event.Invoke(ProfileChanged.Type.TemporaryProfileDeleted, existingProfile, null);
+            _event.Invoke(new ProfileChanged.Arguments(ProfileChanged.Type.TemporaryProfileDeleted, existingProfile, null));
         }
 
         Profiles.Add(profile);
 
         _logger.Debug($"Added temporary profile for {permanentIdentifier}");
-        _event.Invoke(ProfileChanged.Type.TemporaryProfileAdded, profile, null);
+        _event.Invoke(new ProfileChanged.Arguments(ProfileChanged.Type.TemporaryProfileAdded, profile, null));
     }
 
     public void RemoveTemporaryProfile(Profile profile)
@@ -474,7 +470,7 @@ public partial class ProfileManager : IDisposable
 
         _logger.Debug($"Removed temporary profile for {profile.Characters[0].Incognito(null)}");
 
-        _event.Invoke(ProfileChanged.Type.TemporaryProfileDeleted, profile, null);
+        _event.Invoke(new ProfileChanged.Arguments(ProfileChanged.Type.TemporaryProfileDeleted, profile, null));
     }
 
     public void RemoveTemporaryProfile(Guid profileId)
@@ -609,8 +605,9 @@ public partial class ProfileManager : IDisposable
         _saveService.QueueSave(profile);
     }
 
-    private void OnTemplateChange(TemplateChanged.Type type, Template? template, object? arg3)
+    private void OnTemplateChange(in TemplateChanged.Arguments args)
     {
+        var (type, template, arg3) = args;
         if (type is not TemplateChanged.Type.Deleted)
             return;
 
@@ -623,7 +620,7 @@ public partial class ProfileManager : IDisposable
 
                 profile.Templates.RemoveAt(i--);
 
-                _event.Invoke(ProfileChanged.Type.RemovedTemplate, profile, template);
+                _event.Invoke(new ProfileChanged.Arguments(ProfileChanged.Type.RemovedTemplate, profile, template));
 
                 SaveProfile(profile);
 
@@ -634,8 +631,9 @@ public partial class ProfileManager : IDisposable
         return;
     }
 
-    private void OnReload(ReloadEvent.Type type)
+    private void OnReload(in ReloadEvent.Arguments args)
     {
+        var type = args.Type;
         if (type != ReloadEvent.Type.ReloadProfiles &&
             type != ReloadEvent.Type.ReloadAll)
             return;
@@ -645,8 +643,9 @@ public partial class ProfileManager : IDisposable
     }
 
 
-    private void OnArmatureChange(ArmatureChanged.Type type, Armature armature, object? arg3)
+    private void OnArmatureChange(in ArmatureChanged.Arguments args)
     {
+        var (type, armature, arg3) = args;
         if (type == ArmatureChanged.Type.Deleted)
         {
             //hack: sending TemporaryProfileDeleted will result in OnArmatureChange being sent
@@ -673,7 +672,7 @@ public partial class ProfileManager : IDisposable
 
             _logger.Debug($"ProfileManager.OnArmatureChange: Removed unused temporary profile for {profile.Characters[0].Incognito(null)}");
 
-            _event.Invoke(ProfileChanged.Type.TemporaryProfileDeleted, profile, null);
+            _event.Invoke(new ProfileChanged.Arguments(ProfileChanged.Type.TemporaryProfileDeleted, profile, null));
         }
     }
 

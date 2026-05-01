@@ -1,10 +1,9 @@
-﻿using Dalamud.Interface.Utility;
+using Dalamud.Interface.Utility;
 using Dalamud.Interface;
 using Dalamud.Bindings.ImGui;
-using OtterGui;
 using System;
 using System.Linq;
-using OtterGui.Raii;
+using ImSharp;
 using System.Numerics;
 
 namespace CustomizePlus.UI.Windows.MainWindow.Tabs;
@@ -42,12 +41,12 @@ public static class HeaderDrawer
             if (!Visible)
                 return;
 
-            using var color = ImRaii.PushColor(ImGuiCol.Border, BorderColor)
-                .Push(ImGuiCol.Text, TextColor, TextColor != 0);
-            if (ImGuiUtil.DrawDisabledButton(Icon.ToIconString(), new Vector2(Width, ImGui.GetFrameHeight()), string.Empty, Disabled, true))
+            using var color = ImGuiColor.Border.Push(BorderColor)
+                .Push(ImGuiColor.Text, TextColor, TextColor != 0);
+            if (UiHelpers.DrawIconButton(Icon, new Vector2(Width, ImGui.GetFrameHeight()), string.Empty, Disabled))
                 OnClick?.Invoke();
             color.Pop();
-            ImGuiUtil.HoverTooltip(Description);
+            UiHelpers.DrawHoverTooltip(Description);
         }
 
         public static Button IncognitoButton(bool current, Action<bool> setter)
@@ -68,9 +67,9 @@ public static class HeaderDrawer
 
     public static void Draw(string text, uint textColor, uint frameColor, int leftButtons, params Button[] buttons)
     {
-        using var style = ImRaii.PushStyle(ImGuiStyleVar.ItemSpacing, Vector2.Zero)
-            .Push(ImGuiStyleVar.FrameRounding, 0)
-            .Push(ImGuiStyleVar.FrameBorderSize, ImGuiHelpers.GlobalScale);
+        using var style = Im.Style.Push(ImStyleDouble.ItemSpacing, Vector2.Zero)
+            .Push(ImStyleSingle.FrameRounding, 0)
+            .Push(ImStyleSingle.FrameBorderThickness, ImGuiHelpers.GlobalScale);
 
         var leftButtonSize = 0f;
         foreach (var button in buttons.Take(leftButtons).Where(b => b.Visible))
@@ -84,13 +83,13 @@ public static class HeaderDrawer
         var midSize = ImGui.GetContentRegionAvail().X - rightButtonSize - ImGuiHelpers.GlobalScale;
 
         style.Pop();
-        style.Push(ImGuiStyleVar.ButtonTextAlign, new Vector2(0.5f + (rightButtonSize - leftButtonSize) / midSize, 0.5f));
+        style.Push(ImStyleDouble.ButtonTextAlign, new Vector2(0.5f + (rightButtonSize - leftButtonSize) / midSize, 0.5f));
         if (textColor != 0)
-            ImGuiUtil.DrawTextButton(text, new Vector2(midSize, ImGui.GetFrameHeight()), frameColor, textColor);
+            UiHelpers.DrawColoredButton(text, new Vector2(midSize, ImGui.GetFrameHeight()), frameColor, textColor);
         else
-            ImGuiUtil.DrawTextButton(text, new Vector2(midSize, ImGui.GetFrameHeight()), frameColor);
+            UiHelpers.DrawColoredButton(text, new Vector2(midSize, ImGui.GetFrameHeight()), frameColor);
         style.Pop();
-        style.Push(ImGuiStyleVar.FrameBorderSize, ImGuiHelpers.GlobalScale);
+        style.Push(ImStyleSingle.FrameBorderThickness, ImGuiHelpers.GlobalScale);
 
         foreach (var button in buttons.Skip(leftButtons).Where(b => b.Visible))
         {

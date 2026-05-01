@@ -1,12 +1,16 @@
-﻿using Dalamud.Hooking;
+using Dalamud.Hooking;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
-using OtterGui.Classes;
-using OtterGui.Services;
+using Luna;
 using Penumbra.GameData;
 
 namespace CustomizePlus.GameData.Hooks.Objects;
-public sealed unsafe class CharacterDestructor : EventWrapperPtr<Character, CharacterDestructor.Priority>, IHookService
+public sealed unsafe class CharacterDestructor : EventBase<CharacterDestructor.Arguments, CharacterDestructor.Priority>, IHookService
 {
+    public readonly struct Arguments(Character* character)
+    {
+        public readonly Character* Character = character;
+    }
+
     public enum Priority
     {
         /// <seealso cref="PathResolving.CutsceneService"/>
@@ -16,8 +20,8 @@ public sealed unsafe class CharacterDestructor : EventWrapperPtr<Character, Char
         IdentifiedCollectionCache = 0,
     }
 
-    public CharacterDestructor(HookManager hooks)
-        : base("Character Destructor")
+    public CharacterDestructor(HookManager hooks, LunaLogger log)
+        : base("Character Destructor", log)
         => _task = hooks.CreateHook<Delegate>(Name, Sigs.CharacterDestructor, Detour, true);
 
     private readonly Task<Hook<Delegate>> _task;
@@ -42,7 +46,7 @@ public sealed unsafe class CharacterDestructor : EventWrapperPtr<Character, Char
     private void Detour(Character* character)
     {
         //Penumbra.Log.Verbose($"[{Name}] Triggered with 0x{(nint)character:X}.");
-        Invoke(character);
+        Invoke(new Arguments(character));
         _task.Result.Original(character);
     }
 }

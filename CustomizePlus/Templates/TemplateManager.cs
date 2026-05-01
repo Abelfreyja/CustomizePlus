@@ -1,11 +1,10 @@
-﻿using CustomizePlus.Core.Data;
+using CustomizePlus.Core.Data;
 using CustomizePlus.Core.Events;
 using CustomizePlus.Core.Helpers;
 using CustomizePlus.Core.Services;
 using CustomizePlus.Templates.Data;
 using CustomizePlus.Templates.Events;
 using Newtonsoft.Json.Linq;
-using OtterGui.Log;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -84,7 +83,7 @@ public class TemplateManager : IDisposable
                 $"Moved {invalidNames.Count - failed} templates to correct names.{(failed > 0 ? $" Failed to move {failed} templates to correct names." : string.Empty)}");
 
         _logger.Information("Templates load complete");
-        _event.Invoke(TemplateChanged.Type.ReloadedAll, null, null);
+        _event.Invoke(new TemplateChanged.Arguments(TemplateChanged.Type.ReloadedAll, null, null));
     }
 
     public Template Create(string name, Dictionary<string, BoneTransform>? bones, bool handlePath)
@@ -107,7 +106,7 @@ public class TemplateManager : IDisposable
 
         _saveService.ImmediateSave(template);
 
-        _event.Invoke(TemplateChanged.Type.Created, template, path);
+        _event.Invoke(new TemplateChanged.Arguments(TemplateChanged.Type.Created, template, path));
 
         return template;
     }
@@ -137,7 +136,7 @@ public class TemplateManager : IDisposable
 
         _saveService.ImmediateSave(template);
 
-        _event.Invoke(TemplateChanged.Type.Created, template, path);
+        _event.Invoke(new TemplateChanged.Arguments(TemplateChanged.Type.Created, template, path));
 
         return template;
     }
@@ -158,7 +157,7 @@ public class TemplateManager : IDisposable
         SaveTemplate(template);
 
         _logger.Debug($"Renamed template {template.UniqueId}.");
-        _event.Invoke(TemplateChanged.Type.Renamed, template, oldName);
+        _event.Invoke(new TemplateChanged.Arguments(TemplateChanged.Type.Renamed, template, oldName));
     }
 
     /// <summary>
@@ -169,7 +168,7 @@ public class TemplateManager : IDisposable
     {
         _templates.Remove(template);
         _saveService.ImmediateDelete(template);
-        _event.Invoke(TemplateChanged.Type.Deleted, template, null);
+        _event.Invoke(new TemplateChanged.Arguments(TemplateChanged.Type.Deleted, template, null));
     }
 
     /// <summary>
@@ -185,7 +184,7 @@ public class TemplateManager : IDisposable
         SaveTemplate(template);
 
         _logger.Debug($"Set template {template.UniqueId} to {(value ? string.Empty : "no longer be ")} write-protected.");
-        _event.Invoke(TemplateChanged.Type.WriteProtection, template, value);
+        _event.Invoke(new TemplateChanged.Arguments(TemplateChanged.Type.WriteProtection, template, value));
     }
 
     /// <summary>
@@ -225,14 +224,14 @@ public class TemplateManager : IDisposable
                 template.Bones[boneName].UpdateToMatch(transform);
 
                 _logger.Debug($"Updated bone {boneName} on {template.Name}");
-                _event.Invoke(TemplateChanged.Type.UpdatedBone, template, boneName);
+                _event.Invoke(new TemplateChanged.Arguments(TemplateChanged.Type.UpdatedBone, template, boneName));
             }
             else
             {
                 template.Bones.Remove(boneName);
 
                 _logger.Debug($"Deleted bone {boneName} on {template.Name}");
-                _event.Invoke(TemplateChanged.Type.DeletedBone, template, boneName);
+                _event.Invoke(new TemplateChanged.Arguments(TemplateChanged.Type.DeletedBone, template, boneName));
             }
 
             return true;
@@ -246,7 +245,7 @@ public class TemplateManager : IDisposable
             template.Bones[boneName] = new BoneTransform(transform);
 
             _logger.Debug($"Created bone {boneName} on {template.Name}");
-            _event.Invoke(TemplateChanged.Type.NewBone, template, boneName);
+            _event.Invoke(new TemplateChanged.Arguments(TemplateChanged.Type.NewBone, template, boneName));
         }
 
         return true;
@@ -260,7 +259,7 @@ public class TemplateManager : IDisposable
         template.Bones.Remove(boneName);
 
         _logger.Debug($"Deleted bone {boneName} on {template.Name}");
-        _event.Invoke(TemplateChanged.Type.DeletedBone, template, boneName);
+        _event.Invoke(new TemplateChanged.Arguments(TemplateChanged.Type.DeletedBone, template, boneName));
     }
 
     private void PruneUneditedBones(Template template)
@@ -282,8 +281,9 @@ public class TemplateManager : IDisposable
         _saveService.QueueSave(template);
     }
 
-    private void OnReload(ReloadEvent.Type type)
+    private void OnReload(in ReloadEvent.Arguments args)
     {
+        var type = args.Type;
         if (type != ReloadEvent.Type.ReloadTemplates &&
             type != ReloadEvent.Type.ReloadAll)
             return;

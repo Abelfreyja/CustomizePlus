@@ -1,16 +1,11 @@
-﻿using CustomizePlus.Profiles.Data;
+using CustomizePlus.Profiles.Data;
 using CustomizePlus.Profiles.Events;
 using CustomizePlus.Templates.Data;
 using Dalamud.Game.ClientState.Objects.Enums;
 using Newtonsoft.Json.Linq;
-using OtterGui.Classes;
 using Penumbra.GameData.Actors;
 using Penumbra.GameData.Structs;
 using Penumbra.String;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 
 namespace CustomizePlus.Profiles;
 
@@ -73,7 +68,7 @@ public partial class ProfileManager : IDisposable
                 $"Moved {invalidNames.Count - failed} profiles to correct names.{(failed > 0 ? $" Failed to move {failed} profiles to correct names." : string.Empty)}");
 
         _logger.Information("Profiles load complete");
-        _event.Invoke(ProfileChanged.Type.ReloadedAll, null, null);
+        _event.Invoke(new ProfileChanged.Arguments(ProfileChanged.Type.ReloadedAll, null, null));
     }
 
     private Profile LoadIndividualProfile(JObject obj)
@@ -105,10 +100,10 @@ public partial class ProfileManager : IDisposable
             var currentPlayer = _actorManager.GetCurrentPlayer();
             profile.Characters.Add(_actorManager.CreateOwned(currentPlayer.PlayerName, currentPlayer.HomeWorld, ObjectKind.Companion, new NpcId(id)));
         }
-        else if (_reverseNameDicts.TryGetID(ObjectKind.MountType, characterName, out id))
+                else if (_reverseNameDicts.TryGetID(ObjectKind.Mount, characterName, out id))
         {
             var currentPlayer = _actorManager.GetCurrentPlayer();
-            profile.Characters.Add(_actorManager.CreateOwned(currentPlayer.PlayerName, currentPlayer.HomeWorld, ObjectKind.MountType, new NpcId(id)));
+                    profile.Characters.Add(_actorManager.CreateOwned(currentPlayer.PlayerName, currentPlayer.HomeWorld, ObjectKind.Mount, new NpcId(id)));
         }
         else if (_reverseNameDicts.TryGetID(ObjectKind.EventNpc, characterName, out id))
             profile.Characters.Add(_actorManager.CreateNpc(ObjectKind.EventNpc, new NpcId(id)));
@@ -179,6 +174,8 @@ public partial class ProfileManager : IDisposable
         };
         if (profile.ModifiedDate < creationDate)
             profile.ModifiedDate = creationDate;
+
+        Profile.ReadFileSystemPath(obj, profile.Path);
 
         if (obj["Templates"] is not JArray templateArray)
             return profile;

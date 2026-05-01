@@ -6,8 +6,6 @@ using CustomizePlus.Profiles;
 using CustomizePlus.Templates.Events;
 using Dalamud.Plugin;
 using ECommonsLite.EzIpcManager;
-using OtterGui.Log;
-using System;
 using Penumbra.GameData.Actors;
 
 namespace CustomizePlus.Api;
@@ -27,7 +25,6 @@ public partial class CustomizePlusIpc : IDisposable
     private readonly ProfileManager _profileManager;
     private readonly ActorManager _actorManager;
     private readonly GameObjectService _gameObjectService;
-    private readonly ProfileFileSystem _profileFileSystem;
     private readonly CutsceneService _cutsceneService;
 
     private readonly ArmatureChanged _armatureChangedEvent;
@@ -45,7 +42,6 @@ public partial class CustomizePlusIpc : IDisposable
         ProfileManager profileManager,
         ActorManager actorManager,
         GameObjectService gameObjectService,
-        ProfileFileSystem profileFileSystem,
         CutsceneService cutsceneService,
         ArmatureChanged armatureChangedEvent,
         TemplateChanged templateChangedEvent)
@@ -56,7 +52,6 @@ public partial class CustomizePlusIpc : IDisposable
         _profileManager = profileManager;
         _actorManager = actorManager;
         _gameObjectService = gameObjectService;
-        _profileFileSystem = profileFileSystem;
         _cutsceneService = cutsceneService;
 
         _armatureChangedEvent = armatureChangedEvent;

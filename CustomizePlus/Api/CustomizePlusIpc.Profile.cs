@@ -1,13 +1,11 @@
-﻿using CustomizePlus.Api.Data;
+using CustomizePlus.Api.Data;
 using CustomizePlus.Api.Enums;
-using CustomizePlus.Armatures.Data;
 using CustomizePlus.Armatures.Events;
 using CustomizePlus.Core.Extensions;
 using CustomizePlus.GameData.Extensions;
 using CustomizePlus.Profiles.Data;
 using CustomizePlus.Profiles.Enums;
 using CustomizePlus.Profiles.Exceptions;
-using CustomizePlus.Templates.Data;
 using CustomizePlus.Templates.Events;
 using Dalamud.Game.ClientState.Objects.Types;
 using ECommonsLite.EzIpcManager;
@@ -16,9 +14,6 @@ using Penumbra.GameData.Actors;
 using Penumbra.GameData.Enums;
 using Penumbra.GameData.Structs;
 using Penumbra.String;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace CustomizePlus.Api;
 
@@ -48,7 +43,7 @@ public partial class CustomizePlusIpc
             .Where(x => x.ProfileType == ProfileType.Normal)
             .Select(x =>
             {
-                string path = _profileFileSystem.TryGetValue(x, out var leaf) ? leaf.FullName() : x.Name.Text;
+                var path = x.Node?.FullPath ?? x.Name.Text;
                 var charactersList = new List<IPCCharacterDataTuple>(x.Characters.Count);
 
                 foreach (var character in x.Characters)
@@ -420,8 +415,9 @@ public partial class CustomizePlusIpc
     }
 
     //Send profile update if any of the templates were changed in currently active profile
-    private void OnTemplateChanged(TemplateChanged.Type type, Template? template, object? arg3)
+    private void OnTemplateChanged(in TemplateChanged.Arguments args)
     {
+        var (type, template, arg3) = args;
         if (type != TemplateChanged.Type.EditorDisabled)
             return;
 
@@ -449,8 +445,9 @@ public partial class CustomizePlusIpc
     }
 
     //warn: intended limitation - ignores default profiles because why you would use default profile on your own character
-    private void OnArmatureChanged(ArmatureChanged.Type type, Armature armature, object? arg3)
+    private void OnArmatureChanged(in ArmatureChanged.Arguments args)
     {
+        var (type, armature, arg3) = args;
         if (armature.ActorIdentifier != _gameObjectService.GetCurrentPlayerActorIdentifier())
             return;
 

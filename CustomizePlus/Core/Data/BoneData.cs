@@ -1,9 +1,6 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using Dalamud.Utility;
 using System.Text;
 using System.Text.RegularExpressions;
-using Dalamud.Utility;
 
 namespace CustomizePlus.Core.Data;
 

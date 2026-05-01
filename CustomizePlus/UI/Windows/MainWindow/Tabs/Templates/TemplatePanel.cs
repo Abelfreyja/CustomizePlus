@@ -1,22 +1,15 @@
-﻿using Dalamud.Interface;
-using Dalamud.Bindings.ImGui;
-using OtterGui;
-using OtterGui.Classes;
-using OtterGui.Raii;
-using OtterGui.Text;
-using System;
-using System.Linq;
-using System.Numerics;
-using CustomizePlus.Templates;
 using CustomizePlus.Configuration.Data;
 using CustomizePlus.Core.Helpers;
+using CustomizePlus.Templates;
 using CustomizePlus.Templates.Data;
-using OtterGui.Log;
 using CustomizePlus.Templates.Events;
+using Dalamud.Bindings.ImGui;
+using Dalamud.Interface;
+using Dalamud.Interface.Utility;
 
 namespace CustomizePlus.UI.Windows.MainWindow.Tabs.Templates;
 
-public class TemplatePanel : IDisposable
+public class TemplatePanel : IHeader, IPanel, IDisposable
 {
     private readonly TemplateFileSystemSelector _selector;
     private readonly TemplateManager _manager;
@@ -37,7 +30,19 @@ public class TemplatePanel : IDisposable
     private bool _isEditorEnablePending = false;
 
     private string SelectionName
-        => _selector.Selected == null ? "No Selection" : _selector.IncognitoMode ? _selector.Selected.Incognito : _selector.Selected.Name.Text;
+        => _selector.SelectedPaths.Count > 1
+            ? "Multiple Templates"
+            : _selector.Selected == null
+                ? "No Selection"
+                : _selector.IncognitoMode
+                    ? _selector.Selected.Incognito
+                    : _selector.Selected.Name.Text;
+
+    public ReadOnlySpan<byte> Id
+        => "TemplatePanel"u8;
+
+    public bool Collapsed
+        => false;
 
     public TemplatePanel(
         TemplateFileSystemSelector selector,
@@ -66,17 +71,18 @@ public class TemplatePanel : IDisposable
 
     public void Draw()
     {
-        using var group = ImRaii.Group();
         if (_selector.SelectedPaths.Count > 1)
         {
             DrawMultiSelection();
         }
         else
         {
-            DrawHeader();
             DrawPanel();
         }
     }
+
+    public void Draw(Vector2 size)
+        => DrawHeader();
 
     public void Dispose()
     {
@@ -130,24 +136,24 @@ public class TemplatePanel : IDisposable
         ImGui.NewLine();
         ImGui.TextUnformatted("Currently Selected Templates");
         ImGui.Separator();
-        using var table = ImRaii.Table("templates", 3, ImGuiTableFlags.RowBg);
+        using var table = Im.Table.Begin("templates", 3, TableFlags.RowBackground);
         ImGui.TableSetupColumn("btn", ImGuiTableColumnFlags.WidthFixed, sizeType);
         ImGui.TableSetupColumn("name", ImGuiTableColumnFlags.WidthFixed, sizeMods);
         ImGui.TableSetupColumn("path", ImGuiTableColumnFlags.WidthFixed, sizeFolders);
 
         var i = 0;
-        foreach (var (fullName, path) in _selector.SelectedPaths.Select(p => (p.FullName(), p))
+        foreach (var (fullName, path) in _selector.SelectedPaths.Select(p => (p.FullPath, p))
                      .OrderBy(p => p.Item1, StringComparer.OrdinalIgnoreCase))
         {
-            using var id = ImRaii.PushId(i++);
+            using var id = Im.Id.Push(i++);
             ImGui.TableNextColumn();
-            var icon = (path is TemplateFileSystem.Leaf ? FontAwesomeIcon.FileCircleMinus : FontAwesomeIcon.FolderMinus).ToIconString();
-            if (ImGuiUtil.DrawDisabledButton(icon, new Vector2(sizeType), "Remove from selection.", false, true))
+            var icon = path is IFileSystemData<Template> ? FontAwesomeIcon.FileCircleMinus : FontAwesomeIcon.FolderMinus;
+            if (UiHelpers.DrawIconButton(icon, new Vector2(sizeType), "Remove from selection.", false))
                 _selector.RemovePathFromMultiSelection(path);
 
             ImGui.TableNextColumn();
             ImGui.AlignTextToFramePadding();
-            ImGui.TextUnformatted(path is TemplateFileSystem.Leaf l ? _selector.IncognitoMode ? l.Value.Incognito : l.Value.Name.Text : string.Empty);
+            ImGui.TextUnformatted(path is IFileSystemData<Template> data ? _selector.IncognitoMode ? data.Value.Incognito : data.Value.Name.Text : string.Empty);
 
             ImGui.TableNextColumn();
             ImGui.AlignTextToFramePadding();
@@ -157,14 +163,12 @@ public class TemplatePanel : IDisposable
 
     private void DrawPanel()
     {
-        using var child = ImRaii.Child("##Panel", -Vector2.One, true);
-        if (!child || _selector.Selected == null)
+        if (_selector.Selected == null)
             return;
 
-        using (var disabled = ImRaii.Disabled(_selector.Selected?.IsWriteProtected ?? true))
+        using (var disabled = Im.Disabled(_selector.Selected?.IsWriteProtected ?? true))
         {
             DrawBasicSettings();
-            DrawEditorToggle();
         }
 
         _boneEditor.Draw();
@@ -174,7 +178,8 @@ public class TemplatePanel : IDisposable
     {
         (bool isEditorAllowed, bool isEditorActive) = CanToggleEditor();
 
-        if (ImGuiUtil.DrawDisabledButton($"{(_boneEditor.IsEditorActive ? "Finish" : "Start")} bone editing", Vector2.Zero,
+        var width = MathF.Min(180 * ImGuiHelpers.GlobalScale, ImGui.GetContentRegionAvail().X);
+        if (UiHelpers.DrawDisabledButton($"{(_boneEditor.IsEditorActive ? "Finish" : "Start")} bone editing", new Vector2(width, 0),
             "Toggle the bone editor for this template", !isEditorAllowed))
         {
             if (!isEditorActive)
@@ -191,37 +196,50 @@ public class TemplatePanel : IDisposable
 
     private void DrawBasicSettings()
     {
-        using (var style = ImRaii.PushStyle(ImGuiStyleVar.ButtonTextAlign, new Vector2(0, 0.5f)))
+        using (var table = Im.Table.Begin("BasicSettings", 2))
         {
-            using (var table = ImRaii.Table("BasicSettings", 2))
+            if (!table)
+                return;
+
+            ImGui.TableSetupColumn("Label", ImGuiTableColumnFlags.WidthFixed, 110 * ImGuiHelpers.GlobalScale);
+            ImGui.TableSetupColumn("Control", ImGuiTableColumnFlags.WidthStretch);
+
+            ImGui.TableNextRow();
+            UiHelpers.DrawPropertyLabel("Template Name");
+            ImGui.TableNextColumn();
+            DrawTemplateNameControl();
+
+            ImGui.TableNextRow();
+            UiHelpers.DrawPropertyLabel("Bone Editor");
+            ImGui.TableNextColumn();
+            DrawEditorToggle();
+        }
+    }
+
+    private void DrawTemplateNameControl()
+    {
+        var name = _newName ?? _selector.Selected!.Name;
+        ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X);
+
+        if (!_selector.IncognitoMode)
+        {
+            if (ImGui.InputText("##Name", ref name, 128))
             {
-                ImGui.TableSetupColumn("BasicCol1", ImGuiTableColumnFlags.WidthFixed, ImGui.CalcTextSize("lorem ipsum dolor").X);
-                ImGui.TableSetupColumn("BasicCol2", ImGuiTableColumnFlags.WidthStretch);
-
-                ImGuiUtil.DrawFrameColumn("Template Name");
-                ImGui.TableNextColumn();
-                var width = new Vector2(ImGui.GetContentRegionAvail().X, 0);
-                var name = _newName ?? _selector.Selected!.Name;
-                ImGui.SetNextItemWidth(width.X);
-
-                if (!_selector.IncognitoMode)
-                {
-                    if (ImGui.InputText("##Name", ref name, 128))
-                    {
-                        _newName = name;
-                        _changedTemplate = _selector.Selected;
-                    }
-
-                    if (ImGui.IsItemDeactivatedAfterEdit() && _changedTemplate != null)
-                    {
-                        _manager.Rename(_changedTemplate, name);
-                        _newName = null;
-                        _changedTemplate = null;
-                    }
-                }
-                else
-                    ImGui.TextUnformatted(_selector.Selected!.Incognito);
+                _newName = name;
+                _changedTemplate = _selector.Selected;
             }
+
+            if (ImGui.IsItemDeactivatedAfterEdit() && _changedTemplate != null)
+            {
+                _manager.Rename(_changedTemplate, name);
+                _newName = null;
+                _changedTemplate = null;
+            }
+        }
+        else
+        {
+            ImGui.AlignTextToFramePadding();
+            ImGui.TextUnformatted(_selector.Selected!.Incognito);
         }
     }
 
@@ -229,7 +247,7 @@ public class TemplatePanel : IDisposable
     {
         try
         {
-            ImUtf8.SetClipboardText(Base64Helper.ExportTemplateToBase64(_selector.Selected!));
+            Im.Clipboard.Set(Base64Helper.ExportTemplateToBase64(_selector.Selected!));
             _popupSystem.ShowPopup(PopupSystem.Messages.ClipboardDataNotLongTerm);
         }
         catch (Exception ex)
@@ -250,8 +268,9 @@ public class TemplatePanel : IDisposable
         _boneEditor.EnableEditor(_selector.Selected!);
     }
 
-    private void OnEditorEvent(TemplateEditorEvent.Type type, Template? template)
+    private void OnEditorEvent(in TemplateEditorEvent.Arguments args)
     {
+        var (type, template) = args;
         if (type != TemplateEditorEvent.Type.EditorEnableRequestedStage2)
             return;
 
