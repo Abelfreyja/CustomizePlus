@@ -1,4 +1,3 @@
-using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility;
 
@@ -64,6 +63,6 @@ public static class UiHelpers
             Im.Tooltip.OnHover(text);
     }
 
-    public static unsafe bool IsDragDropPayload(string label)
-        => ImGui.AcceptDragDropPayload(label).Handle != null;
+    public static bool IsDragDropPayload(string label)
+        => Im.DragDrop.AcceptPayload(label).Valid;
 }

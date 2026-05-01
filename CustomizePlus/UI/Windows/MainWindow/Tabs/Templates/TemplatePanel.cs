@@ -3,7 +3,6 @@ using CustomizePlus.Core.Helpers;
 using CustomizePlus.Templates;
 using CustomizePlus.Templates.Data;
 using CustomizePlus.Templates.Events;
-using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility;
 
@@ -119,7 +118,7 @@ public class TemplatePanel : IHeader, IPanel, IDisposable
         };
 
     private void DrawHeader()
-        => HeaderDrawer.Draw(SelectionName, 0, ImGui.GetColorU32(ImGuiCol.FrameBg),
+        => HeaderDrawer.Draw(SelectionName, 0, Im.Color.Get(ImGuiColor.FrameBackground).Color,
             1, ExportToClipboardButton(), LockButton(),
             HeaderDrawer.Button.IncognitoButton(_selector.IncognitoMode, v => _selector.IncognitoMode = v));
 
@@ -128,36 +127,39 @@ public class TemplatePanel : IHeader, IPanel, IDisposable
         if (_selector.SelectedPaths.Count == 0)
             return;
 
-        var sizeType = ImGui.GetFrameHeight();
-        var availableSizePercent = (ImGui.GetContentRegionAvail().X - sizeType - 4 * ImGui.GetStyle().CellPadding.X) / 100;
+        var sizeType = Im.Style.FrameHeight;
+        var availableSizePercent = (Im.ContentRegion.Available.X - sizeType - 4 * Im.Style.CellPadding.X) / 100;
         var sizeMods = availableSizePercent * 35;
         var sizeFolders = availableSizePercent * 65;
 
-        ImGui.NewLine();
-        ImGui.TextUnformatted("Currently Selected Templates");
-        ImGui.Separator();
+        Im.Line.New();
+        Im.Text("Currently Selected Templates");
+        Im.Separator();
         using var table = Im.Table.Begin("templates", 3, TableFlags.RowBackground);
-        ImGui.TableSetupColumn("btn", ImGuiTableColumnFlags.WidthFixed, sizeType);
-        ImGui.TableSetupColumn("name", ImGuiTableColumnFlags.WidthFixed, sizeMods);
-        ImGui.TableSetupColumn("path", ImGuiTableColumnFlags.WidthFixed, sizeFolders);
+        if (!table)
+            return;
+
+        table.SetupColumn("btn", TableColumnFlags.WidthFixed, sizeType);
+        table.SetupColumn("name", TableColumnFlags.WidthFixed, sizeMods);
+        table.SetupColumn("path", TableColumnFlags.WidthFixed, sizeFolders);
 
         var i = 0;
         foreach (var (fullName, path) in _selector.SelectedPaths.Select(p => (p.FullPath, p))
                      .OrderBy(p => p.Item1, StringComparer.OrdinalIgnoreCase))
         {
             using var id = Im.Id.Push(i++);
-            ImGui.TableNextColumn();
+            table.NextColumn();
             var icon = path is IFileSystemData<Template> ? FontAwesomeIcon.FileCircleMinus : FontAwesomeIcon.FolderMinus;
             if (UiHelpers.DrawIconButton(icon, new Vector2(sizeType), "Remove from selection.", false))
                 _selector.RemovePathFromMultiSelection(path);
 
-            ImGui.TableNextColumn();
-            ImGui.AlignTextToFramePadding();
-            ImGui.TextUnformatted(path is IFileSystemData<Template> data ? _selector.IncognitoMode ? data.Value.Incognito : data.Value.Name.Text : string.Empty);
+            table.NextColumn();
+            Im.Cursor.FrameAlign();
+            Im.Text(path is IFileSystemData<Template> data ? _selector.IncognitoMode ? data.Value.Incognito : data.Value.Name.Text : string.Empty);
 
-            ImGui.TableNextColumn();
-            ImGui.AlignTextToFramePadding();
-            ImGui.TextUnformatted(_selector.IncognitoMode ? "Incognito is active" : fullName);
+            table.NextColumn();
+            Im.Cursor.FrameAlign();
+            Im.Text(_selector.IncognitoMode ? "Incognito is active" : fullName);
         }
     }
 
@@ -178,7 +180,7 @@ public class TemplatePanel : IHeader, IPanel, IDisposable
     {
         (bool isEditorAllowed, bool isEditorActive) = CanToggleEditor();
 
-        var width = MathF.Min(180 * ImGuiHelpers.GlobalScale, ImGui.GetContentRegionAvail().X);
+        var width = MathF.Min(180 * ImGuiHelpers.GlobalScale, Im.ContentRegion.Available.X);
         if (UiHelpers.DrawDisabledButton($"{(_boneEditor.IsEditorActive ? "Finish" : "Start")} bone editing", new Vector2(width, 0),
             "Toggle the bone editor for this template", !isEditorAllowed))
         {
@@ -201,17 +203,17 @@ public class TemplatePanel : IHeader, IPanel, IDisposable
             if (!table)
                 return;
 
-            ImGui.TableSetupColumn("Label", ImGuiTableColumnFlags.WidthFixed, 110 * ImGuiHelpers.GlobalScale);
-            ImGui.TableSetupColumn("Control", ImGuiTableColumnFlags.WidthStretch);
+            table.SetupColumn("Label", TableColumnFlags.WidthFixed, 110 * ImGuiHelpers.GlobalScale);
+            table.SetupColumn("Control", TableColumnFlags.WidthStretch);
 
-            ImGui.TableNextRow();
+            table.NextRow();
             UiHelpers.DrawPropertyLabel("Template Name");
-            ImGui.TableNextColumn();
+            table.NextColumn();
             DrawTemplateNameControl();
 
-            ImGui.TableNextRow();
+            table.NextRow();
             UiHelpers.DrawPropertyLabel("Bone Editor");
-            ImGui.TableNextColumn();
+            table.NextColumn();
             DrawEditorToggle();
         }
     }
@@ -219,17 +221,17 @@ public class TemplatePanel : IHeader, IPanel, IDisposable
     private void DrawTemplateNameControl()
     {
         var name = _newName ?? _selector.Selected!.Name;
-        ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X);
+        Im.Item.SetNextWidthFull();
 
         if (!_selector.IncognitoMode)
         {
-            if (ImGui.InputText("##Name", ref name, 128))
+            if (Im.Input.Text("##Name", ref name, maxLength: 128))
             {
                 _newName = name;
                 _changedTemplate = _selector.Selected;
             }
 
-            if (ImGui.IsItemDeactivatedAfterEdit() && _changedTemplate != null)
+            if (Im.Item.DeactivatedAfterEdit && _changedTemplate != null)
             {
                 _manager.Rename(_changedTemplate, name);
                 _newName = null;
@@ -238,8 +240,8 @@ public class TemplatePanel : IHeader, IPanel, IDisposable
         }
         else
         {
-            ImGui.AlignTextToFramePadding();
-            ImGui.TextUnformatted(_selector.Selected!.Incognito);
+            Im.Cursor.FrameAlign();
+            Im.Text(_selector.Selected!.Incognito);
         }
     }
 

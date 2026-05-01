@@ -7,7 +7,6 @@ using CustomizePlus.Profiles.Data;
 using CustomizePlus.Templates;
 using CustomizePlus.Templates.Events;
 using CustomizePlus.UI.Windows.Controls;
-using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility;
 using Penumbra.GameData.Actors;
@@ -118,7 +117,7 @@ public class ProfilePanel : IHeader, IPanel
         };
 
     private void DrawHeader()
-        => HeaderDrawer.Draw(SelectionName, 0, ImGui.GetColorU32(ImGuiCol.FrameBg),
+        => HeaderDrawer.Draw(SelectionName, 0, Im.Color.Get(ImGuiColor.FrameBackground).Color,
             1, ExportToClipboardButton(), LockButton(),
             HeaderDrawer.Button.IncognitoButton(_selector.IncognitoMode, v => _selector.IncognitoMode = v));
 
@@ -127,36 +126,39 @@ public class ProfilePanel : IHeader, IPanel
         if (_selector.SelectedPaths.Count == 0)
             return;
 
-        var sizeType = ImGui.GetFrameHeight();
-        var availableSizePercent = (ImGui.GetContentRegionAvail().X - sizeType - 4 * ImGui.GetStyle().CellPadding.X) / 100;
+        var sizeType = Im.Style.FrameHeight;
+        var availableSizePercent = (Im.ContentRegion.Available.X - sizeType - 4 * Im.Style.CellPadding.X) / 100;
         var sizeMods = availableSizePercent * 35;
         var sizeFolders = availableSizePercent * 65;
 
-        ImGui.NewLine();
-        ImGui.TextUnformatted("Currently Selected Profiles");
-        ImGui.Separator();
+        Im.Line.New();
+        Im.Text("Currently Selected Profiles");
+        Im.Separator();
         using var table = Im.Table.Begin("profile", 3, TableFlags.RowBackground);
-        ImGui.TableSetupColumn("btn", ImGuiTableColumnFlags.WidthFixed, sizeType);
-        ImGui.TableSetupColumn("name", ImGuiTableColumnFlags.WidthFixed, sizeMods);
-        ImGui.TableSetupColumn("path", ImGuiTableColumnFlags.WidthFixed, sizeFolders);
+        if (!table)
+            return;
+
+        table.SetupColumn("btn", TableColumnFlags.WidthFixed, sizeType);
+        table.SetupColumn("name", TableColumnFlags.WidthFixed, sizeMods);
+        table.SetupColumn("path", TableColumnFlags.WidthFixed, sizeFolders);
 
         var i = 0;
         foreach (var (fullName, path) in _selector.SelectedPaths.Select(p => (p.FullPath, p))
                      .OrderBy(p => p.Item1, StringComparer.OrdinalIgnoreCase))
         {
             using var id = Im.Id.Push(i++);
-            ImGui.TableNextColumn();
+            table.NextColumn();
             var icon = path is IFileSystemData<Profile> ? FontAwesomeIcon.FileCircleMinus : FontAwesomeIcon.FolderMinus;
             if (UiHelpers.DrawIconButton(icon, new Vector2(sizeType), "Remove from selection.", false))
                 _selector.RemovePathFromMultiSelection(path);
 
-            ImGui.TableNextColumn();
-            ImGui.AlignTextToFramePadding();
-            ImGui.TextUnformatted(path is IFileSystemData<Profile> data ? _selector.IncognitoMode ? data.Value.Incognito : data.Value.Name.Text : string.Empty);
+            table.NextColumn();
+            Im.Cursor.FrameAlign();
+            Im.Text(path is IFileSystemData<Profile> data ? _selector.IncognitoMode ? data.Value.Incognito : data.Value.Name.Text : string.Empty);
 
-            ImGui.TableNextColumn();
-            ImGui.AlignTextToFramePadding();
-            ImGui.TextUnformatted(_selector.IncognitoMode ? "Incognito is active" : fullName);
+            table.NextColumn();
+            Im.Cursor.FrameAlign();
+            Im.Text(_selector.IncognitoMode ? "Incognito is active" : fullName);
         }
     }
 
@@ -167,20 +169,20 @@ public class ProfilePanel : IHeader, IPanel
 
         DrawBasicSettings();
 
-        ImGui.Separator();
+        Im.Separator();
 
         using (var disabled = Im.Disabled(_selector.Selected?.IsWriteProtected ?? true))
         {
-            var isShouldDraw = ImGui.CollapsingHeader("Add character");
+            var isShouldDraw = Im.Tree.Header("Add character");
 
             if (isShouldDraw)
                 DrawAddCharactersArea();
 
-            ImGui.Separator();
+            Im.Separator();
 
             DrawCharacterListArea();
 
-            ImGui.Separator();
+            Im.Separator();
 
             DrawTemplateArea();
         }
@@ -193,22 +195,22 @@ public class ProfilePanel : IHeader, IPanel
             if (!table)
                 return;
 
-            ImGui.TableSetupColumn("Label", ImGuiTableColumnFlags.WidthFixed, 110 * ImGuiHelpers.GlobalScale);
-            ImGui.TableSetupColumn("Control", ImGuiTableColumnFlags.WidthStretch);
+            table.SetupColumn("Label", TableColumnFlags.WidthFixed, 110 * ImGuiHelpers.GlobalScale);
+            table.SetupColumn("Control", TableColumnFlags.WidthStretch);
 
-            ImGui.TableNextRow();
+            table.NextRow();
             UiHelpers.DrawPropertyLabel("Enabled");
-            ImGui.TableNextColumn();
+            table.NextColumn();
             DrawEnabledControl();
 
-            ImGui.TableNextRow();
+            table.NextRow();
             UiHelpers.DrawPropertyLabel("Profile Name");
-            ImGui.TableNextColumn();
+            table.NextColumn();
             DrawProfileNameControl();
 
-            ImGui.TableNextRow();
+            table.NextRow();
             UiHelpers.DrawPropertyLabel("Priority");
-            ImGui.TableNextColumn();
+            table.NextColumn();
             DrawPriorityControl();
         }
     }
@@ -218,11 +220,11 @@ public class ProfilePanel : IHeader, IPanel
         var enabled = _selector.Selected?.Enabled ?? false;
         using (Im.Disabled(_templateEditorManager.IsEditorActive || _templateEditorManager.IsEditorPaused))
         {
-            if (ImGui.Checkbox("##Enabled", ref enabled))
+            if (Im.Checkbox("##Enabled", ref enabled))
                 _manager.SetEnabled(_selector.Selected!, enabled);
         }
 
-        ImGui.SameLine();
+        Im.Line.Same();
         LunaStyle.DrawAlignedHelpMarker("Whether the templates in this profile should be applied at all.");
     }
 
@@ -230,17 +232,17 @@ public class ProfilePanel : IHeader, IPanel
     {
         using var disabled = Im.Disabled(_selector.Selected?.IsWriteProtected ?? true);
         var name = _newName ?? _selector.Selected!.Name;
-        ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X);
+        Im.Item.SetNextWidthFull();
 
         if (!_selector.IncognitoMode)
         {
-            if (ImGui.InputText("##ProfileName", ref name, 128))
+            if (Im.Input.Text("##ProfileName", ref name, maxLength: 128))
             {
                 _newName = name;
                 _changedProfile = _selector.Selected;
             }
 
-            if (ImGui.IsItemDeactivatedAfterEdit() && _changedProfile != null)
+            if (Im.Item.DeactivatedAfterEdit && _changedProfile != null)
             {
                 _manager.Rename(_changedProfile, name);
                 _newName = null;
@@ -249,8 +251,8 @@ public class ProfilePanel : IHeader, IPanel
         }
         else
         {
-            ImGui.AlignTextToFramePadding();
-            ImGui.TextUnformatted(_selector.Selected!.Incognito);
+            Im.Cursor.FrameAlign();
+            Im.Text(_selector.Selected!.Incognito);
         }
     }
 
@@ -259,21 +261,21 @@ public class ProfilePanel : IHeader, IPanel
         using var disabled = Im.Disabled(_selector.Selected?.IsWriteProtected ?? true);
         var priority = _newPriority ?? _selector.Selected!.Priority;
 
-        ImGui.SetNextItemWidth(90 * ImGuiHelpers.GlobalScale);
-        if (ImGui.InputInt("##Priority", ref priority, 0, 0))
+        Im.Item.SetNextWidth(90 * ImGuiHelpers.GlobalScale);
+        if (Im.Input.Scalar("##Priority", ref priority, "%d", 0, 0))
         {
             _newPriority = priority;
             _changedProfile = _selector.Selected;
         }
 
-        if (ImGui.IsItemDeactivatedAfterEdit() && _changedProfile != null)
+        if (Im.Item.DeactivatedAfterEdit && _changedProfile != null)
         {
             _manager.SetPriority(_changedProfile, priority);
             _newPriority = null;
             _changedProfile = null;
         }
 
-        ImGui.SameLine();
+        Im.Line.Same();
         LunaStyle.DrawAlignedHelpMarker("Profiles with a higher number here take precedence before profiles with a lower number.\n"
             + "That means if two or more profiles affect same character, profile with higher priority will be applied to that character.");
     }
@@ -296,28 +298,28 @@ public class ProfilePanel : IHeader, IPanel
     {
         using (var style = Im.Style.Push(ImStyleDouble.ButtonTextAlign, new Vector2(0, 0.5f)))
         {
-            var width = new Vector2(ImGui.GetContentRegionAvail().X - ImGui.CalcTextSize("Limit to my creatures").X - 68, 0);
+            var width = new Vector2(Im.ContentRegion.Available.X - Im.Font.CalculateSize("Limit to my creatures").X - 68, 0);
 
-            ImGui.SetNextItemWidth(width.X);
+            Im.Item.SetNextWidth(width.X);
 
             bool appliesToMultiple = _manager.DefaultProfile == _selector.Selected || _manager.DefaultLocalPlayerProfile == _selector.Selected;
             using (Im.Disabled(appliesToMultiple))
             {
                 _actorAssignmentUi.DrawWorldCombo(width.X / 2);
-                ImGui.SameLine();
+                Im.Line.Same();
                 _actorAssignmentUi.DrawPlayerInput(width.X / 2);
 
-                var buttonWidth = new Vector2(165 * ImGuiHelpers.GlobalScale - ImGui.GetStyle().ItemSpacing.X / 2, 0);
+                var buttonWidth = new Vector2(165 * ImGuiHelpers.GlobalScale - Im.Style.ItemSpacing.X / 2, 0);
 
                 if (UiHelpers.DrawDisabledButton("Apply to player character", buttonWidth, string.Empty, !_actorAssignmentUi.CanSetPlayer))
                     _manager.AddCharacter(_selector.Selected!, _actorAssignmentUi.PlayerIdentifier);
 
-                ImGui.SameLine();
+                Im.Line.Same();
 
                 if (UiHelpers.DrawDisabledButton("Apply to retainer", buttonWidth, string.Empty, !_actorAssignmentUi.CanSetRetainer))
                     _manager.AddCharacter(_selector.Selected!, _actorAssignmentUi.RetainerIdentifier);
 
-                ImGui.SameLine();
+                Im.Line.Same();
 
                 if (UiHelpers.DrawDisabledButton("Apply to mannequin", buttonWidth, string.Empty, !_actorAssignmentUi.CanSetMannequin))
                     _manager.AddCharacter(_selector.Selected!, _actorAssignmentUi.MannequinIdentifier);
@@ -326,10 +328,10 @@ public class ProfilePanel : IHeader, IPanel
                 if (UiHelpers.DrawDisabledButton("Apply to current character", buttonWidth, string.Empty, !currentPlayer.IsValid))
                     _manager.AddCharacter(_selector.Selected!, currentPlayer);
 
-                ImGui.Separator();
+                Im.Separator();
 
                 _actorAssignmentUi.DrawObjectKindCombo(width.X / 2);
-                ImGui.SameLine();
+                Im.Line.Same();
                 _actorAssignmentUi.DrawNpcInput(width.X / 2);
 
                 if (UiHelpers.DrawDisabledButton("Apply to selected NPC", buttonWidth, string.Empty, !_actorAssignmentUi.CanSetNpc))
@@ -344,61 +346,59 @@ public class ProfilePanel : IHeader, IPanel
         var isDefaultLPOrCurrentProfilesEnabled = (_manager.DefaultLocalPlayerProfile?.Enabled ?? false) || (_selector.Selected?.Enabled ?? false);
         using (Im.Disabled(isDefaultLPOrCurrentProfilesEnabled))
         {
-            if (ImGui.Checkbox("##DefaultLocalPlayerProfile", ref isDefaultLP))
+            if (Im.Checkbox("##DefaultLocalPlayerProfile", ref isDefaultLP))
                 _manager.SetDefaultLocalPlayerProfile(isDefaultLP ? _selector.Selected! : null);
             LunaStyle.DrawAlignedHelpMarkerLabel("Apply to any character you are logged in with",
                 "Whether the templates in this profile should be applied to any character you are currently logged in with.\r\nTakes priority over the next option for said character.\r\nThis setting cannot be applied to multiple profiles.");
         }
         if (isDefaultLPOrCurrentProfilesEnabled)
         {
-            ImGui.SameLine();
-            ImGui.PushStyleColor(ImGuiCol.Text, Constants.Colors.Warning);
+            Im.Line.Same();
+            using var warning = ImGuiColor.Text.Push(Constants.Colors.Warning);
             UiHelpers.DrawIcon(FontAwesomeIcon.ExclamationTriangle);
-            ImGui.PopStyleColor();
             UiHelpers.DrawHoverTooltip("Can only be changed when both currently selected and profile where this checkbox is checked are disabled.");
         }
 
-        ImGui.SameLine();
+        Im.Line.Same();
         using(Im.Disabled(true))
-            ImGui.Button("##splitter", new Vector2(1, ImGui.GetFrameHeight()));
-        ImGui.SameLine();
+            Im.Button("##splitter", new Vector2(1, Im.Style.FrameHeight));
+        Im.Line.Same();
 
         var isDefault = _manager.DefaultProfile == _selector.Selected;
         var isDefaultOrCurrentProfilesEnabled = (_manager.DefaultProfile?.Enabled ?? false) || (_selector.Selected?.Enabled ?? false);
         using (Im.Disabled(isDefaultOrCurrentProfilesEnabled))
         {
-            if (ImGui.Checkbox("##DefaultProfile", ref isDefault))
+            if (Im.Checkbox("##DefaultProfile", ref isDefault))
                 _manager.SetDefaultProfile(isDefault ? _selector.Selected! : null);
             LunaStyle.DrawAlignedHelpMarkerLabel("Apply to all players and retainers",
                 "Whether the templates in this profile are applied to all players and retainers without a specific profile.\r\nThis setting cannot be applied to multiple profiles.");
         }
         if (isDefaultOrCurrentProfilesEnabled)
         {
-            ImGui.SameLine();
-            ImGui.PushStyleColor(ImGuiCol.Text, Constants.Colors.Warning);
+            Im.Line.Same();
+            using var warning = ImGuiColor.Text.Push(Constants.Colors.Warning);
             UiHelpers.DrawIcon(FontAwesomeIcon.ExclamationTriangle);
-            ImGui.PopStyleColor();
             UiHelpers.DrawHoverTooltip("Can only be changed when both currently selected and profile where this checkbox is checked are disabled.");
         }
         bool appliesToMultiple = _manager.DefaultProfile == _selector.Selected || _manager.DefaultLocalPlayerProfile == _selector.Selected;
 
-        ImGui.Separator();
+        Im.Separator();
 
         using var dis = Im.Disabled(appliesToMultiple);
-        using var table = Im.Table.Begin("CharacterTable", 2, TableFlags.RowBackground | TableFlags.ScrollX | TableFlags.ScrollY, new Vector2(ImGui.GetContentRegionAvail().X, 200));
+        using var table = Im.Table.Begin("CharacterTable", 2, TableFlags.RowBackground | TableFlags.ScrollX | TableFlags.ScrollY, new Vector2(Im.ContentRegion.Available.X, 200));
         if (!table)
             return;
 
-        ImGui.TableSetupColumn("##charaDel", ImGuiTableColumnFlags.WidthFixed, ImGui.GetFrameHeight());
-        ImGui.TableSetupColumn("Character", ImGuiTableColumnFlags.WidthFixed, 320 * ImGuiHelpers.GlobalScale);
-        ImGui.TableHeadersRow();
+        table.SetupColumn("##charaDel", TableColumnFlags.WidthFixed, Im.Style.FrameHeight);
+        table.SetupColumn("Character", TableColumnFlags.WidthFixed, 320 * ImGuiHelpers.GlobalScale);
+        table.HeaderRow();
 
         if (appliesToMultiple)
         {
-            ImGui.TableNextColumn();
-            ImGui.TableNextColumn();
-            ImGui.AlignTextToFramePadding();
-            ImGui.TextUnformatted("Applies to multiple targets");
+            table.NextColumn();
+            table.NextColumn();
+            Im.Cursor.FrameAlign();
+            Im.Text("Applies to multiple targets");
             return;
         }
 
@@ -408,49 +408,47 @@ public class ProfilePanel : IHeader, IPanel
 
         if (charas.Count == 0)
         {
-            ImGui.TableNextColumn();
-            ImGui.TableNextColumn();
-            ImGui.AlignTextToFramePadding();
-            ImGui.TextUnformatted("No characters are associated with this profile");
+            table.NextColumn();
+            table.NextColumn();
+            Im.Cursor.FrameAlign();
+            Im.Text("No characters are associated with this profile");
         }
 
         foreach (var (character, idx) in charas)
         {
             using var id = Im.Id.Push(idx);
-            ImGui.TableNextColumn();
+            table.NextColumn();
             var keyValid = _configuration.UISettings.DeleteTemplateModifier.IsActive();
             var tt = keyValid
                 ? "Remove this character from the profile."
                 : $"Remove this character from the profile.\nHold {_configuration.UISettings.DeleteTemplateModifier} to remove.";
 
-            if (UiHelpers.DrawIconButton(FontAwesomeIcon.Trash, new Vector2(ImGui.GetFrameHeight()), tt, !keyValid))
+            if (UiHelpers.DrawIconButton(FontAwesomeIcon.Trash, new Vector2(Im.Style.FrameHeight), tt, !keyValid))
                 _endAction = () => _manager.DeleteCharacter(_selector.Selected!, character);
-            ImGui.TableNextColumn();
-            ImGui.AlignTextToFramePadding();
-            ImGui.TextUnformatted(!_selector.IncognitoMode ? $"{character.ToNameWithoutOwnerName()}{character.TypeToString()}" : "Incognito");
+            table.NextColumn();
+            Im.Cursor.FrameAlign();
+            Im.Text(!_selector.IncognitoMode ? $"{character.ToNameWithoutOwnerName()}{character.TypeToString()}" : "Incognito");
 
             var profiles = _manager.GetEnabledProfilesByActor(character).ToList();
             if (profiles.Count > 1)
             {
                 //todo: make helper
-                ImGui.SameLine();
+                Im.Line.Same();
                 if (profiles.Any(x => x.IsTemporary))
                 {
-                    ImGui.PushStyleColor(ImGuiCol.Text, Constants.Colors.Error);
+                    using var color = ImGuiColor.Text.Push(Constants.Colors.Error);
                     UiHelpers.DrawIcon(FontAwesomeIcon.Lock);
                 }
                 else if (profiles[0] != _selector.Selected!)
                 {
-                    ImGui.PushStyleColor(ImGuiCol.Text, Constants.Colors.Warning);
+                    using var color = ImGuiColor.Text.Push(Constants.Colors.Warning);
                     UiHelpers.DrawIcon(FontAwesomeIcon.ExclamationTriangle);
                 }
                 else
                 {
-                    ImGui.PushStyleColor(ImGuiCol.Text, Constants.Colors.Info);
+                    using var color = ImGuiColor.Text.Push(Constants.Colors.Info);
                     UiHelpers.DrawIcon(FontAwesomeIcon.Star);
                 }
-
-                ImGui.PopStyleColor();
 
                 if (profiles.Any(x => x.IsTemporary))
                     UiHelpers.DrawHoverTooltip("This character is being affected by temporary profile set by external plugin. This profile will not be applied!");
@@ -470,71 +468,70 @@ public class ProfilePanel : IHeader, IPanel
         if (!table)
             return;
 
-        ImGui.TableSetupColumn("##del", ImGuiTableColumnFlags.WidthFixed, ImGui.GetFrameHeight());
-        ImGui.TableSetupColumn("##Index", ImGuiTableColumnFlags.WidthFixed, 30 * ImGuiHelpers.GlobalScale);
-        ImGui.TableSetupColumn("##Enabled", ImGuiTableColumnFlags.WidthFixed, 30 * ImGuiHelpers.GlobalScale);
+        table.SetupColumn("##del", TableColumnFlags.WidthFixed, Im.Style.FrameHeight);
+        table.SetupColumn("##Index", TableColumnFlags.WidthFixed, 30 * ImGuiHelpers.GlobalScale);
+        table.SetupColumn("##Enabled", TableColumnFlags.WidthFixed, 30 * ImGuiHelpers.GlobalScale);
 
-        ImGui.TableSetupColumn("Template", ImGuiTableColumnFlags.WidthFixed, 220 * ImGuiHelpers.GlobalScale);
+        table.SetupColumn("Template", TableColumnFlags.WidthFixed, 220 * ImGuiHelpers.GlobalScale);
 
-        ImGui.TableSetupColumn("##editbtn", ImGuiTableColumnFlags.WidthFixed, 120 * ImGuiHelpers.GlobalScale);
+        table.SetupColumn("##editbtn", TableColumnFlags.WidthFixed, 120 * ImGuiHelpers.GlobalScale);
 
-        ImGui.TableHeadersRow();
+        table.HeaderRow();
 
         //warn: .ToList() might be performance critical at some point
         //the copying via ToList is done because manipulations with .Templates list result in "Collection was modified" exception here
         foreach (var (template, idx) in _selector.Selected!.Templates.Select((template, idx) => (template, idx)).ToList())
         {
             using var id = Im.Id.Push(idx);
-            ImGui.TableNextColumn();
+            table.NextColumn();
             var keyValid = _configuration.UISettings.DeleteTemplateModifier.IsActive();
             var tt = keyValid
                 ? "Remove this template from the profile."
                 : $"Remove this template from the profile.\nHold {_configuration.UISettings.DeleteTemplateModifier} to remove.";
 
-            if (UiHelpers.DrawIconButton(FontAwesomeIcon.Trash, new Vector2(ImGui.GetFrameHeight()), tt, !keyValid))
+            if (UiHelpers.DrawIconButton(FontAwesomeIcon.Trash, new Vector2(Im.Style.FrameHeight), tt, !keyValid))
                 _endAction = () => _manager.DeleteTemplate(_selector.Selected!, idx);
-            ImGui.TableNextColumn();
-            ImGui.Selectable($"#{idx + 1:D2}");
+            table.NextColumn();
+            Im.Selectable($"#{idx + 1:D2}");
             DrawDragDrop(_selector.Selected!, idx);
 
-            ImGui.TableNextColumn();
+            table.NextColumn();
             var enabled = !_selector.Selected!.DisabledTemplates.Contains(template.UniqueId);
-            if (ImGui.Checkbox("##EnableCheckbox", ref enabled))
+            if (Im.Checkbox("##EnableCheckbox", ref enabled))
                 _manager.ToggleTemplate(_selector.Selected!, idx);
             UiHelpers.DrawHoverTooltip("Whether this template is applied to the profile.");
 
-            ImGui.TableNextColumn();
+            table.NextColumn();
 
             _templateCombo.Draw(_selector.Selected!, template, idx);
 
             DrawDragDrop(_selector.Selected!, idx);
 
-            ImGui.TableNextColumn();
+            table.NextColumn();
 
             var disabledCondition = _templateEditorManager.IsEditorActive || template.IsWriteProtected;
 
-            if (UiHelpers.DrawIconButton(FontAwesomeIcon.Edit, new Vector2(ImGui.GetFrameHeight()), "Open this template in the template editor.", disabledCondition))
+            if (UiHelpers.DrawIconButton(FontAwesomeIcon.Edit, new Vector2(Im.Style.FrameHeight), "Open this template in the template editor.", disabledCondition))
                 _templateEditorEvent.Invoke(new TemplateEditorEvent.Arguments(TemplateEditorEvent.Type.EditorEnableRequested, template));
 
             if (disabledCondition)
             {
                 //todo: make helper
-                ImGui.SameLine();
-                ImGui.PushStyleColor(ImGuiCol.Text, Constants.Colors.Warning);
+                Im.Line.Same();
+                using var warning = ImGuiColor.Text.Push(Constants.Colors.Warning);
                 UiHelpers.DrawIcon(FontAwesomeIcon.ExclamationTriangle);
-                ImGui.PopStyleColor();
                 UiHelpers.DrawHoverTooltip("This template cannot be edited because it is either write protected or you are already editing one of the templates.");
             }
         }
 
-        ImGui.TableNextColumn();
-        ImGui.TableNextColumn();
-        ImGui.TableNextColumn();
-        ImGui.AlignTextToFramePadding();
-        ImGui.TextUnformatted("New");
-        ImGui.TableNextColumn();
+        table.NextColumn();
+        table.NextColumn();
+        table.NextColumn();
+        Im.Cursor.FrameAlign();
+        Im.Text("New");
+        table.NextColumn();
         _templateCombo.Draw(_selector.Selected!, null, -1);
-        ImGui.TableNextRow();
+        table.NextRow();
 
         _endAction?.Invoke();
         _endAction = null;
@@ -561,8 +558,8 @@ public class ProfilePanel : IHeader, IPanel
         {
             if (source)
             {
-                ImGui.TextUnformatted($"Moving template #{index + 1:D2}...");
-                if (ImGui.SetDragDropPayload(dragDropLabel, null, 0))
+                Im.Text($"Moving template #{index + 1:D2}...");
+                if (source.SetPayload(dragDropLabel))
                 {
                     _dragIndex = index;
                 }

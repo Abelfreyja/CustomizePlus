@@ -5,7 +5,6 @@ using CustomizePlus.Templates;
 using CustomizePlus.Templates.Data;
 using CustomizePlus.Templates.Events;
 using CustomizePlus.UI;
-using Dalamud.Bindings.ImGui;
 using ImSharp;
 
 namespace CustomizePlus.UI.Windows.Controls;
@@ -70,7 +69,7 @@ public abstract class TemplateComboBase : SimpleFilterCombo<Tuple<Template, stri
         if (path.Length <= 0 || template.Name == path)
             return;
 
-        DrawRightAligned(template.Name, path, ImGui.GetColorU32(ImGuiCol.TextDisabled));
+        DrawRightAligned(template.Name, path, Im.Color.Get(ImGuiColor.TextDisabled));
     }
 
     protected bool Draw(Template? currentTemplate, string? label, float width)
@@ -92,22 +91,21 @@ public abstract class TemplateComboBase : SimpleFilterCombo<Tuple<Template, stri
             CacheManager.Instance.SetDirty(CurrentId);
     }
 
-    private static void DrawRightAligned(string leftText, string text, uint color)
+    private static void DrawRightAligned(string leftText, string text, Rgba32 color)
     {
-        var start = ImGui.GetItemRectMin();
-        var pos = start.X + ImGui.CalcTextSize(leftText).X;
-        var maxSize = ImGui.GetWindowPos().X + ImGui.GetWindowContentRegionMax().X;
+        var start = Im.Item.Bounds.Minimum;
+        var pos = start.X + Im.Font.CalculateSize(leftText).X;
+        var maxSize = Im.Window.Position.X + Im.Window.MaximumContentRegion.X;
         var remainingSpace = maxSize - pos;
-        var requiredSize = ImGui.CalcTextSize(text).X + ImGui.GetStyle().ItemInnerSpacing.X;
+        var requiredSize = Im.Font.CalculateSize(text).X + Im.Style.ItemInnerSpacing.X;
         var offset = remainingSpace - requiredSize;
-        if (ImGui.GetScrollMaxY() == 0)
-            offset -= ImGui.GetStyle().ItemInnerSpacing.X;
+        if (Im.Scroll.MaximumY == 0)
+            offset -= Im.Style.ItemInnerSpacing.X;
 
-        if (offset < ImGui.GetStyle().ItemSpacing.X)
+        if (offset < Im.Style.ItemSpacing.X)
             UiHelpers.DrawHoverTooltip(text);
         else
-            ImGui.GetWindowDrawList().AddText(start with { X = pos + offset },
-                color, text);
+            Im.Window.DrawList.Text(start with { X = pos + offset }, color, text);
     }
 }
 
@@ -135,7 +133,7 @@ public sealed class TemplateCombo : TemplateComboBase
 
     public void Draw(Profile profile, Template? template, int templateIndex)
     {
-        if (!Draw(template, Incognito ? template?.Incognito : template?.Name, ImGui.GetContentRegionAvail().X))
+        if (!Draw(template, Incognito ? template?.Incognito : template?.Name, Im.ContentRegion.Available.X))
             return;
 
         if (templateIndex >= 0)

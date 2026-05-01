@@ -1,4 +1,3 @@
-using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 
 namespace CustomizePlus.UI.Windows.Controls;
@@ -54,13 +53,13 @@ public abstract class CPlusFileSystemSelector<T, TState> : FileSystemDrawer<CPlu
     protected abstract bool FoldersDefaultOpen { get; }
 
     public override Vector4 ExpandedFolderColor
-        => ImGui.ColorConvertU32ToFloat4(ExpandedFolderColorValue);
+        => ((Rgba32)ExpandedFolderColorValue).ToVector();
 
     public override Vector4 CollapsedFolderColor
-        => ImGui.ColorConvertU32ToFloat4(CollapsedFolderColorValue);
+        => ((Rgba32)CollapsedFolderColorValue).ToVector();
 
     public override Vector4 FolderLineColor
-        => ImGui.ColorConvertU32ToFloat4(ColorId.FolderLine.Value());
+        => ((Rgba32)ColorId.FolderLine.Value()).ToVector();
 
     public virtual void Dispose()
     {
