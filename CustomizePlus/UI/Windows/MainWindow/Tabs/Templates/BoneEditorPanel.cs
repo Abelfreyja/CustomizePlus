@@ -22,6 +22,9 @@ public class BoneEditorPanel
     private static readonly Vector4 AxisXCellColor = new(0.80f, 0.28f, 0.28f, 0.08f);
     private static readonly Vector4 AxisYCellColor = new(0.35f, 0.72f, 0.35f, 0.07f);
     private static readonly Vector4 AxisZCellColor = new(0.32f, 0.52f, 0.95f, 0.08f);
+    private static readonly Vector4 AxisXEditedCellColor = new(0.80f, 0.28f, 0.28f, 0.18f);
+    private static readonly Vector4 AxisYEditedCellColor = new(0.35f, 0.72f, 0.35f, 0.16f);
+    private static readonly Vector4 AxisZEditedCellColor = new(0.32f, 0.52f, 0.95f, 0.18f);
 
     private readonly TemplateFileSystemSelector _templateFileSystemSelector;
     private readonly TemplateEditorManager _editorManager;
@@ -715,6 +718,29 @@ public class BoneEditorPanel
         Im.Table.SetBackgroundColor(TableBackgroundTarget.Cell, color);
     }
 
+    private static void SetEditedRowBackground(bool edited)
+    {
+        if (edited)
+            Im.Table.SetBackgroundColor(TableBackgroundTarget.Row1, WithAlpha(ImGuiColor.CheckMark, 0.08f));
+    }
+
+    private static (bool X, bool Y, bool Z) GetEditedAxes(Vector3 value, BoneAttribute attribute)
+        => (
+            IsValueEdited(value.X, attribute),
+            IsValueEdited(value.Y, attribute),
+            IsValueEdited(value.Z, attribute)
+        );
+
+    private static bool IsValueEdited(float value, BoneAttribute attribute)
+    {
+        return attribute switch
+        {
+            BoneAttribute.Rotation => Math.Abs(value) > 0.1f,
+            BoneAttribute.Scale or BoneAttribute.ChildScaling => Math.Abs(value - 1f) > 0.00001f,
+            _ => Math.Abs(value) > 0.00001f
+        };
+    }
+
     private bool FullBoneSlider(string label, ref Vector3 value)
     {
         var velocity = _editingAttribute == BoneAttribute.Rotation ? 0.1f : 0.001f;
@@ -728,8 +754,7 @@ public class BoneEditorPanel
             _ => value.X == value.Y && value.Y == value.Z ? value.X : 1.0f
         };
 
-        Im.Item.SetNextWidthFull();
-        if (Im.Drag(label, ref temp, $"%.{_precision}f", minValue, maxValue, velocity))
+        if (DragBoneValue(label, ref temp, minValue, maxValue, velocity))
         {
             value = new Vector3(temp, temp, temp);
             return true;
@@ -746,14 +771,49 @@ public class BoneEditorPanel
         var maxValue = _editingAttribute == BoneAttribute.Rotation ? 360.0f : 10.0f;
 
         var temp = value;
-        Im.Item.SetNextWidthFull();
-        if (Im.Drag(label, ref temp, $"%.{_precision}f", minValue, maxValue, velocity))
+        if (DragBoneValue(label, ref temp, minValue, maxValue, velocity))
         {
             value = temp;
             return true;
         }
 
         return false;
+    }
+
+    private bool DragBoneValue(string label, ref float value, float minValue, float maxValue, float velocity)
+    {
+        using var colors = Im.Color.Push(ImGuiColor.FrameBackground, DarkenWithMinimumAlpha(ImGuiColor.FrameBackground, 0.52f, 0.78f))
+            .Push(ImGuiColor.FrameBackgroundHovered, DarkenWithMinimumAlpha(ImGuiColor.FrameBackgroundHovered, 0.64f, 0.86f))
+            .Push(ImGuiColor.FrameBackgroundActive, DarkenWithMinimumAlpha(ImGuiColor.FrameBackgroundActive, 0.76f, 0.94f))
+            .Push(ImGuiColor.Border, WithMinimumAlpha(ImGuiColor.Border, 0.30f));
+        using var style = Im.Style.Push(ImStyleSingle.FrameBorderThickness, ImGuiHelpers.GlobalScale);
+
+        Im.Item.SetNextWidthFull();
+        return Im.Drag(label, ref value, $"%.{_precision}f", minValue, maxValue, velocity);
+    }
+
+    private static Vector4 DarkenWithMinimumAlpha(ImGuiColor color, float brightness, float alpha)
+    {
+        var value = Im.Color.Get(color).ToVector();
+        value.X *= brightness;
+        value.Y *= brightness;
+        value.Z *= brightness;
+        value.W = MathF.Max(value.W, alpha);
+        return value;
+    }
+
+    private static Vector4 WithMinimumAlpha(ImGuiColor color, float alpha)
+    {
+        var value = Im.Color.Get(color).ToVector();
+        value.W = MathF.Max(value.W, alpha);
+        return value;
+    }
+
+    private static Vector4 WithAlpha(ImGuiColor color, float alpha)
+    {
+        var value = Im.Color.Get(color).ToVector();
+        value.W = alpha;
+        return value;
     }
 
     private void CompleteBoneEditor(BoneData.BoneFamily boneFamily, BoneEditRow bone)
@@ -777,10 +837,13 @@ public class BoneEditorPanel
         };
 
         bool valueChanged = false;
+        var (xEdited, yEdited, zEdited) = GetEditedAxes(newVector, _editingAttribute);
+        var rowEdited = xEdited || yEdited || zEdited || propagationEnabled;
 
         bool isFavorite = false;
 
         using var id = Im.Id.Push(codename);
+        SetEditedRowBackground(rowEdited);
         Im.Table.NextColumn();
         _parentRowScreenPosY = Im.Cursor.ScreenPosition.Y;
         using (var disabled = Im.Disabled(!_isUnlocked))
@@ -803,7 +866,7 @@ public class BoneEditorPanel
             isFavorite = FavoriteButton(bone);
 
             // X
-            NextAxisCell(AxisXCellColor);
+            NextAxisCell(xEdited ? AxisXEditedCellColor : AxisXCellColor);
             float tempX = newVector.X;
             if (Im.Item.Activated)
             {
@@ -826,7 +889,7 @@ public class BoneEditorPanel
             }
 
             // Y
-            NextAxisCell(AxisYCellColor);
+            NextAxisCell(yEdited ? AxisYEditedCellColor : AxisYCellColor);
             float tempY = newVector.Y;
             if (Im.Item.Activated)
             {
@@ -849,7 +912,7 @@ public class BoneEditorPanel
             }
 
             // Z
-            NextAxisCell(AxisZCellColor);
+            NextAxisCell(zEdited ? AxisZEditedCellColor : AxisZCellColor);
             float tempZ = newVector.Z;
             if (Im.Item.Activated)
             {
@@ -874,6 +937,9 @@ public class BoneEditorPanel
             if (_editingAttribute == BoneAttribute.Scale)
             {
                 Im.Table.NextColumn();
+                if (rowEdited)
+                    Im.Table.SetBackgroundColor(TableBackgroundTarget.Cell, WithAlpha(ImGuiColor.CheckMark, 0.12f));
+
                 Vector3 tempScale = newVector;
                 if (Im.Item.Activated)
                 {
@@ -946,9 +1012,15 @@ public class BoneEditorPanel
         bool isChildScaleIndependent = transform.ChildScalingIndependent;
         bool childScaleChanged = false;
         var childScale = isChildScaleIndependent ? transform.ChildScaling : transform.Scaling;
+        var (childXEdited, childYEdited, childZEdited) = GetEditedAxes(childScale, BoneAttribute.ChildScaling);
+        var xEdited = isChildScaleIndependent && childXEdited;
+        var yEdited = isChildScaleIndependent && childYEdited;
+        var zEdited = isChildScaleIndependent && childZEdited;
+        var rowEdited = xEdited || yEdited || zEdited;
 
         using var id = Im.Id.Push($"{codename}_childscale");
 
+        SetEditedRowBackground(rowEdited);
         Im.Table.NextColumn();
         
         Im.Cursor.X = _propagateButtonXPos;
@@ -1022,7 +1094,7 @@ public class BoneEditorPanel
 
         using (var disabled = Im.Disabled(!_isUnlocked || !isChildScaleIndependent))
         {
-            NextAxisCell(AxisXCellColor);
+            NextAxisCell(xEdited ? AxisXEditedCellColor : AxisXCellColor);
             float tempChildX = childScale.X;
             if (Im.Item.Activated)
             {
@@ -1044,7 +1116,7 @@ public class BoneEditorPanel
                 }
             }
 
-            NextAxisCell(AxisYCellColor);
+            NextAxisCell(yEdited ? AxisYEditedCellColor : AxisYCellColor);
             float tempChildY = childScale.Y;
             if (Im.Item.Activated)
             {
@@ -1066,7 +1138,7 @@ public class BoneEditorPanel
                 }
             }
 
-            NextAxisCell(AxisZCellColor);
+            NextAxisCell(zEdited ? AxisZEditedCellColor : AxisZCellColor);
             float tempChildZ = childScale.Z;
             if (Im.Item.Activated)
             {
@@ -1089,6 +1161,9 @@ public class BoneEditorPanel
             }
 
             Im.Table.NextColumn();
+            if (rowEdited)
+                Im.Table.SetBackgroundColor(TableBackgroundTarget.Cell, WithAlpha(ImGuiColor.CheckMark, 0.12f));
+
             if (Im.Item.Activated)
             {
                 _initialChildScale = childScale;

@@ -6,7 +6,6 @@ using CustomizePlus.Core.Services;
 using CustomizePlus.Game.Services;
 using CustomizePlus.UI.Windows.MainWindow.Tabs.Templates;
 using Dalamud.Interface;
-using Dalamud.Interface.Utility;
 
 namespace CustomizePlus.UI.Windows.Controls;
 
@@ -35,7 +34,7 @@ public class PluginStateBlock
         _pcpService = pcpService;
     }
 
-    public void Draw(float yPos)
+    public void Draw(float yPos, float messageLeftEdge)
     {
         var severity = PluginStateSeverity.Normal;
         string? message = null;
@@ -90,8 +89,6 @@ public class PluginStateBlock
 
         if (message != null)
         {
-            Im.Cursor.Position = new Vector2(Im.Window.MaximumContentRegion.X - Im.Font.CalculateSize(message).X - 30, yPos - ImGuiHelpers.GlobalScale);
-
             var icon = FontAwesomeIcon.InfoCircle;
             var color = Constants.Colors.Normal;
             switch (severity)
@@ -106,11 +103,72 @@ public class PluginStateBlock
                     break;
             }
 
-            using var textColor = ImGuiColor.Text.Push(color);
-            CtrlHelper.LabelWithIcon(icon, message, false);
-            if (hoverInfo != null)
-                CtrlHelper.AddHoverText(hoverInfo);
+            DrawMessage(icon, message, hoverInfo, color, yPos, messageLeftEdge);
         }
+    }
+
+    private static void DrawMessage(FontAwesomeIcon icon, string message, string? hoverInfo, Vector4 color, float yPos, float messageLeftEdge)
+    {
+        var itemSpacing = Im.Style.ItemSpacing.X;
+        var rightEdge = Im.Window.MaximumContentRegion.X - itemSpacing;
+        var availableWidth = MathF.Max(0, rightEdge - messageLeftEdge);
+        var iconWidth = icon.CalculateSize().X;
+
+        if (availableWidth < iconWidth)
+            return;
+
+        var textWidth = MathF.Max(0, availableWidth - iconWidth - itemSpacing);
+        var visibleMessage = TruncateTextToWidth(message, textWidth);
+        var visibleMessageWidth = Im.Font.CalculateSize(visibleMessage, false).X;
+        var hasVisibleMessage = visibleMessage.Length > 0;
+        var messageWidth = hasVisibleMessage
+            ? iconWidth + itemSpacing + visibleMessageWidth
+            : iconWidth;
+        var messageWasTrimmed = visibleMessage.Length != message.Length;
+        var x = MathF.Max(messageLeftEdge, rightEdge - messageWidth);
+
+        Im.Cursor.Position = new Vector2(x, yPos + Im.Style.FramePadding.Y);
+
+        using var textColor = ImGuiColor.Text.Push(color);
+        using (var group = Im.Group())
+        {
+            icon.Draw();
+            if (hasVisibleMessage)
+            {
+                Im.Line.Same();
+                Im.Text(visibleMessage);
+            }
+        }
+
+        if (hoverInfo != null || messageWasTrimmed)
+            CtrlHelper.AddHoverText(hoverInfo == null ? message : $"{message}\n\n{hoverInfo}");
+    }
+
+    private static string TruncateTextToWidth(string text, float maxWidth)
+    {
+        if (maxWidth <= 0)
+            return string.Empty;
+
+        if (Im.Font.CalculateSize(text, false).X <= maxWidth)
+            return text;
+
+        var ellipsis = "...";
+        var ellipsisWidth = Im.Font.CalculateSize(ellipsis, false).X;
+        if (ellipsisWidth >= maxWidth)
+            return string.Empty;
+
+        var low = 0;
+        var high = text.Length;
+        while (low < high)
+        {
+            var mid = (low + high + 1) / 2;
+            if (Im.Font.CalculateSize(text[..mid], false).X + ellipsisWidth <= maxWidth)
+                low = mid;
+            else
+                high = mid - 1;
+        }
+
+        return string.Concat(text.AsSpan(0, low), ellipsis.AsSpan());
     }
 
     private enum PluginStateSeverity

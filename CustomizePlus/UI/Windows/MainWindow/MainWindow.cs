@@ -88,17 +88,12 @@ public class MainWindow : LunaWindow, IDisposable
     public override void Draw()
     {
         var yPos = Im.Cursor.Position.Y;
+        var tabs = GetTabs();
 
         using (var disabled = Im.Disabled(_hookingService.RenderHookFailed || _hookingService.MovementHookFailed))
         {
             LockWindowClosureIfNeeded();
-            ImGuiEx.EzTabBar("##tabs", null, _switchToTab, [
-                ("Settings", _settingsTab.Draw, null, true),
-                ("Templates", _templatesTab.Draw, null, true),
-                ("Profiles", _profilesTab.Draw, null, true),
-                (_configuration.DebuggingModeEnabled ? "IPC Test" : null, _ipcTestTab.Draw, ImGuiColors.DalamudGrey, true),
-                (_configuration.DebuggingModeEnabled ? "State monitoring" : null, _stateMonitoringTab.Draw, ImGuiColors.DalamudGrey, true),
-            ]);
+            ImGuiEx.EzTabBar("##tabs", null, _switchToTab, tabs);
 
             _switchToTab = null;
 
@@ -109,7 +104,7 @@ public class MainWindow : LunaWindow, IDisposable
             }
         }
 
-        _pluginStateBlock.Draw(yPos);
+        _pluginStateBlock.Draw(yPos, CalculatePluginStateLeftEdge(tabs));
     }
 
     public void OpenSettings()
@@ -117,6 +112,40 @@ public class MainWindow : LunaWindow, IDisposable
         IsOpen = true;
         _switchToTab = "Settings";
     }
+
+    private (string name, Action function, Vector4? color, bool child)[] GetTabs()
+    {
+        if (!_configuration.DebuggingModeEnabled)
+        {
+            return [
+                ("Settings", _settingsTab.Draw, null, true),
+                ("Templates", _templatesTab.Draw, null, true),
+                ("Profiles", _profilesTab.Draw, null, true),
+            ];
+        }
+
+        return [
+            ("Settings", _settingsTab.Draw, null, true),
+            ("Templates", _templatesTab.Draw, null, true),
+            ("Profiles", _profilesTab.Draw, null, true),
+            ("IPC Test", _ipcTestTab.Draw, ImGuiColors.DalamudGrey, true),
+            ("State monitoring", _stateMonitoringTab.Draw, ImGuiColors.DalamudGrey, true),
+        ];
+    }
+
+    private static float CalculatePluginStateLeftEdge((string name, Action function, Vector4? color, bool child)[] tabs)
+    {
+        var leftEdge = Im.Window.MinimumContentRegion.X;
+        foreach (var (name, _, _, _) in tabs)
+        {
+            leftEdge += CalculateTabWidth(name);
+        }
+
+        return leftEdge + Im.Style.ItemSpacing.X;
+    }
+
+    private static float CalculateTabWidth(string label)
+        => Im.Font.CalculateSize(label, false).X + (2 * Im.Style.FramePadding.X) + Im.Style.ItemInnerSpacing.X;
 
     private void LockWindowClosureIfNeeded()
     {
