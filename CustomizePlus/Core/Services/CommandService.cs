@@ -1,19 +1,14 @@
-﻿using Dalamud.Game.Command;
-using Dalamud.Plugin.Services;
-using OtterGui.Classes;
-using System;
-using System.Linq;
-using OtterGui.Log;
-using Dalamud.Game.Text.SeStringHandling;
-using CustomizePlus.Profiles;
-using CustomizePlus.Game.Services;
-using CustomizePlus.UI.Windows.MainWindow.Tabs.Templates;
-using CustomizePlus.UI.Windows.MainWindow;
-using CustomizePlus.Profiles.Data;
 using CustomizePlus.Configuration.Data;
-using Dalamud.Interface.ImGuiNotification;
+using CustomizePlus.Game.Services;
 using CustomizePlus.GameData.Extensions;
-using System.Collections.Generic;
+using CustomizePlus.Profiles;
+using CustomizePlus.Profiles.Data;
+using CustomizePlus.UI.Windows.MainWindow;
+using CustomizePlus.UI.Windows.MainWindow.Tabs.Templates;
+using Dalamud.Game.Command;
+using Dalamud.Game.Text.SeStringHandling;
+using Dalamud.Interface.ImGuiNotification;
+using Dalamud.Plugin.Services;
 
 namespace CustomizePlus.Core.Services;
 
@@ -112,7 +107,7 @@ public class CommandService : IDisposable
         var argumentList = argument.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         string[]? subArgumentList = null;
 
-        if(argumentList.Length == 2)
+        if (argumentList.Length == 2)
             subArgumentList = argumentList[1].Split(',', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
         bool isTurningOffAllProfiles = subArgumentList != null && subArgumentList.Length != 2 && argumentList[0] == "disable";
@@ -135,7 +130,7 @@ public class CommandService : IDisposable
             return;
         }
 
-        string characterName = "", profileName = "";
+        string characterName = string.Empty, profileName = string.Empty;
 
         try
         {
@@ -188,7 +183,7 @@ public class CommandService : IDisposable
 
                     if (profile.Name != profileName)
                     {
-                        if(profile.Enabled)
+                        if (profile.Enabled)
                             profilesToDisable.Add(profile);
                         continue;
                     }
@@ -199,7 +194,7 @@ public class CommandService : IDisposable
             else
                 profilesToDisable = _profileManager.Profiles.Where(x => x.Characters.Any(x => x.ToNameWithoutOwnerName() == characterName) && x.Enabled).ToList();
 
-            if((!isTurningOffAllProfiles && targetProfile == null) || (isTurningOffAllProfiles && profilesToDisable.Count == 0))
+            if ((!isTurningOffAllProfiles && targetProfile == null) || (isTurningOffAllProfiles && profilesToDisable.Count == 0))
             {
                 _chatService.PrintInChat(new SeStringBuilder()
                     .AddText("Cannot execute command because profile ")
@@ -210,7 +205,7 @@ public class CommandService : IDisposable
                 return;
             }
 
-            if(!isTurningOffAllProfiles)
+            if (!isTurningOffAllProfiles)
             {
                 if (state != null)
                 {
@@ -232,7 +227,7 @@ public class CommandService : IDisposable
                 else
                     _profileManager.SetEnabled(targetProfile!, !targetProfile!.Enabled);
             }
-            
+
             if (isTurningOffAllProfiles || targetProfile!.Enabled)
             {
                 foreach (var profile in profilesToDisable)

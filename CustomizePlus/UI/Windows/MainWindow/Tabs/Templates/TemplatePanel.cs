@@ -1,30 +1,19 @@
-﻿using Dalamud.Interface;
-using Dalamud.Bindings.ImGui;
-using OtterGui;
-using OtterGui.Classes;
-using OtterGui.Raii;
-using OtterGui.Text;
-using System;
-using System.Linq;
-using System.Numerics;
-using CustomizePlus.Templates;
 using CustomizePlus.Configuration.Data;
-using CustomizePlus.Core.Helpers;
+using CustomizePlus.Templates;
 using CustomizePlus.Templates.Data;
-using OtterGui.Log;
 using CustomizePlus.Templates.Events;
+using Dalamud.Interface.Utility;
 
 namespace CustomizePlus.UI.Windows.MainWindow.Tabs.Templates;
 
-public class TemplatePanel : IDisposable
+public class TemplatePanel : IPanel, IDisposable
 {
-    private readonly TemplateFileSystemSelector _selector;
+    private readonly TemplateFileSystem _fileSystem;
     private readonly TemplateManager _manager;
     private readonly BoneEditorPanel _boneEditor;
     private readonly PluginConfiguration _configuration;
-    private readonly MessageService _messageService;
-    private readonly PopupSystem _popupSystem;
-    private readonly Logger _logger;
+    private readonly MultiTemplatePanel _multiTemplatePanel;
+    private readonly FrameworkManager _frameworkManager;
 
     private readonly TemplateEditorEvent _editorEvent;
 
@@ -36,46 +25,44 @@ public class TemplatePanel : IDisposable
     /// </summary>
     private bool _isEditorEnablePending = false;
 
-    private string SelectionName
-        => _selector.Selected == null ? "No Selection" : _selector.IncognitoMode ? _selector.Selected.Incognito : _selector.Selected.Name.Text;
+    public ReadOnlySpan<byte> Id
+        => "TemplatePanel"u8;
 
     public TemplatePanel(
-        TemplateFileSystemSelector selector,
+        TemplateFileSystem fileSystem,
         TemplateManager manager,
         BoneEditorPanel boneEditor,
         PluginConfiguration configuration,
-        MessageService messageService,
-        PopupSystem popupSystem,
-        Logger logger,
-        TemplateEditorEvent editorEvent)
+        TemplateEditorEvent editorEvent,
+        MultiTemplatePanel multiTemplatePanel,
+        FrameworkManager frameworkManager)
     {
-        _selector = selector;
+        _fileSystem = fileSystem;
         _manager = manager;
         _boneEditor = boneEditor;
         _configuration = configuration;
-        _messageService = messageService;
-        _popupSystem = popupSystem;
-        _logger = logger;
+        _multiTemplatePanel = multiTemplatePanel;
+        _frameworkManager = frameworkManager;
 
         _editorEvent = editorEvent;
 
         _editorEvent.Subscribe(OnEditorEvent, TemplateEditorEvent.Priority.TemplatePanel);
 
-        _selector.SelectionChanged += SelectorSelectionChanged;
+        fileSystem.Selection.Changed += SelectorSelectionChanged;
     }
+
+    private Template Selection
+        => (Template)_fileSystem.Selection.Selection!.Value;
 
     public void Draw()
     {
-        using var group = ImRaii.Group();
-        if (_selector.SelectedPaths.Count > 1)
+        if (_fileSystem.Selection.OrderedNodes.Count > 1)
         {
-            DrawMultiSelection();
+            _multiTemplatePanel.Draw();
+            return;
         }
-        else
-        {
-            DrawHeader();
-            DrawPanel();
-        }
+
+        DrawPanel();
     }
 
     public void Dispose()
@@ -83,179 +70,99 @@ public class TemplatePanel : IDisposable
         _editorEvent.Unsubscribe(OnEditorEvent);
     }
 
-    private HeaderDrawer.Button LockButton()
-        => _selector.Selected == null
-            ? HeaderDrawer.Button.Invisible
-            : _selector.Selected.IsWriteProtected
-                ? new HeaderDrawer.Button
-                {
-                    Description = "Make this template editable.",
-                    Icon = FontAwesomeIcon.Lock,
-                    OnClick = () => _manager.SetWriteProtection(_selector.Selected!, false),
-                    Disabled = _boneEditor.IsEditorActive
-                }
-                : new HeaderDrawer.Button
-                {
-                    Description = "Write-protect this template.",
-                    Icon = FontAwesomeIcon.LockOpen,
-                    OnClick = () => _manager.SetWriteProtection(_selector.Selected!, true),
-                    Disabled = _boneEditor.IsEditorActive
-                };
-
-    private HeaderDrawer.Button ExportToClipboardButton()
-        => new()
-        {
-            Description = "Copy the current template to your clipboard.",
-            Icon = FontAwesomeIcon.Copy,
-            OnClick = ExportToClipboard,
-            Visible = _selector.Selected != null,
-            Disabled = _boneEditor.IsEditorActive
-        };
-
-    private void DrawHeader()
-        => HeaderDrawer.Draw(SelectionName, 0, ImGui.GetColorU32(ImGuiCol.FrameBg),
-            1, ExportToClipboardButton(), LockButton(),
-            HeaderDrawer.Button.IncognitoButton(_selector.IncognitoMode, v => _selector.IncognitoMode = v));
-
-    private void DrawMultiSelection()
-    {
-        if (_selector.SelectedPaths.Count == 0)
-            return;
-
-        var sizeType = ImGui.GetFrameHeight();
-        var availableSizePercent = (ImGui.GetContentRegionAvail().X - sizeType - 4 * ImGui.GetStyle().CellPadding.X) / 100;
-        var sizeMods = availableSizePercent * 35;
-        var sizeFolders = availableSizePercent * 65;
-
-        ImGui.NewLine();
-        ImGui.TextUnformatted("Currently Selected Templates");
-        ImGui.Separator();
-        using var table = ImRaii.Table("templates", 3, ImGuiTableFlags.RowBg);
-        ImGui.TableSetupColumn("btn", ImGuiTableColumnFlags.WidthFixed, sizeType);
-        ImGui.TableSetupColumn("name", ImGuiTableColumnFlags.WidthFixed, sizeMods);
-        ImGui.TableSetupColumn("path", ImGuiTableColumnFlags.WidthFixed, sizeFolders);
-
-        var i = 0;
-        foreach (var (fullName, path) in _selector.SelectedPaths.Select(p => (p.FullName(), p))
-                     .OrderBy(p => p.Item1, StringComparer.OrdinalIgnoreCase))
-        {
-            using var id = ImRaii.PushId(i++);
-            ImGui.TableNextColumn();
-            var icon = (path is TemplateFileSystem.Leaf ? FontAwesomeIcon.FileCircleMinus : FontAwesomeIcon.FolderMinus).ToIconString();
-            if (ImGuiUtil.DrawDisabledButton(icon, new Vector2(sizeType), "Remove from selection.", false, true))
-                _selector.RemovePathFromMultiSelection(path);
-
-            ImGui.TableNextColumn();
-            ImGui.AlignTextToFramePadding();
-            ImGui.TextUnformatted(path is TemplateFileSystem.Leaf l ? _selector.IncognitoMode ? l.Value.Incognito : l.Value.Name.Text : string.Empty);
-
-            ImGui.TableNextColumn();
-            ImGui.AlignTextToFramePadding();
-            ImGui.TextUnformatted(_selector.IncognitoMode ? "Incognito is active" : fullName);
-        }
-    }
-
     private void DrawPanel()
     {
-        using var child = ImRaii.Child("##Panel", -Vector2.One, true);
-        if (!child || _selector.Selected == null)
+        if (_fileSystem.Selection.Selection is null)
             return;
 
-        using (var disabled = ImRaii.Disabled(_selector.Selected?.IsWriteProtected ?? true))
+        using (var disabled = Im.Disabled(Selection.IsWriteProtected))
         {
             DrawBasicSettings();
-            DrawEditorToggle();
         }
 
         _boneEditor.Draw();
+    }
+
+    private (bool isEditorAllowed, bool isEditorActive) CanToggleEditor()
+    {
+        return ((_fileSystem.Selection.Selection is not null ? !Selection.IsWriteProtected : false) || _configuration.PluginEnabled, _boneEditor.IsEditorActive);
+    }
+
+    private void DrawBasicSettings()
+    {
+        using (Im.Group())
+        {
+            UiHelpers.DrawPropertyLabel("Template Name");
+            Im.Line.Same();
+            DrawTemplateNameControl();
+
+            UiHelpers.DrawPropertyLabel("Bone Editor");
+            Im.Line.Same();
+            DrawEditorToggle();
+        }
+    }
+
+    private void DrawTemplateNameControl()
+    {
+        var name = _newName ?? Selection.Name;
+        Im.Item.SetNextWidthFull();
+
+        if (!_configuration.UISettings.IncognitoMode)
+        {
+            if (Im.Input.Text("##Name"u8, ref name, maxLength: 128))
+            {
+                _newName = name;
+                _changedTemplate = Selection;
+            }
+
+            if (Im.Item.DeactivatedAfterEdit && _changedTemplate != null)
+            {
+                _manager.Rename(_changedTemplate, name);
+                _newName = null;
+                _changedTemplate = null;
+            }
+        }
+        else
+        {
+            Im.Cursor.FrameAlign();
+            Im.Text(Selection.Incognito);
+        }
     }
 
     private void DrawEditorToggle()
     {
         (bool isEditorAllowed, bool isEditorActive) = CanToggleEditor();
 
-        if (ImGuiUtil.DrawDisabledButton($"{(_boneEditor.IsEditorActive ? "Finish" : "Start")} bone editing", Vector2.Zero,
+        var width = MathF.Min(180 * ImGuiHelpers.GlobalScale, Im.ContentRegion.Available.X);
+        if (UiHelpers.DrawDisabledButton($"{(_boneEditor.IsEditorActive ? "Finish" : "Start")} bone editing", new Vector2(width, 0),
             "Toggle the bone editor for this template", !isEditorAllowed))
         {
             if (!isEditorActive)
-                _boneEditor.EnableEditor(_selector.Selected!);
+                _boneEditor.EnableEditor(Selection);
             else
                 _boneEditor.DisableEditor();
         }
     }
 
-    private (bool isEditorAllowed, bool isEditorActive) CanToggleEditor()
-    {
-        return ((!_selector.Selected?.IsWriteProtected ?? false) || _configuration.PluginEnabled, _boneEditor.IsEditorActive);
-    }
-
-    private void DrawBasicSettings()
-    {
-        using (var style = ImRaii.PushStyle(ImGuiStyleVar.ButtonTextAlign, new Vector2(0, 0.5f)))
-        {
-            using (var table = ImRaii.Table("BasicSettings", 2))
-            {
-                ImGui.TableSetupColumn("BasicCol1", ImGuiTableColumnFlags.WidthFixed, ImGui.CalcTextSize("lorem ipsum dolor").X);
-                ImGui.TableSetupColumn("BasicCol2", ImGuiTableColumnFlags.WidthStretch);
-
-                ImGuiUtil.DrawFrameColumn("Template Name");
-                ImGui.TableNextColumn();
-                var width = new Vector2(ImGui.GetContentRegionAvail().X, 0);
-                var name = _newName ?? _selector.Selected!.Name;
-                ImGui.SetNextItemWidth(width.X);
-
-                if (!_selector.IncognitoMode)
-                {
-                    if (ImGui.InputText("##Name", ref name, 128))
-                    {
-                        _newName = name;
-                        _changedTemplate = _selector.Selected;
-                    }
-
-                    if (ImGui.IsItemDeactivatedAfterEdit() && _changedTemplate != null)
-                    {
-                        _manager.Rename(_changedTemplate, name);
-                        _newName = null;
-                        _changedTemplate = null;
-                    }
-                }
-                else
-                    ImGui.TextUnformatted(_selector.Selected!.Incognito);
-            }
-        }
-    }
-
-    private void ExportToClipboard()
-    {
-        try
-        {
-            ImUtf8.SetClipboardText(Base64Helper.ExportTemplateToBase64(_selector.Selected!));
-            _popupSystem.ShowPopup(PopupSystem.Messages.ClipboardDataNotLongTerm);
-        }
-        catch (Exception ex)
-        {
-            _logger.Error($"Could not copy data from template {_selector.Selected!.UniqueId} to clipboard: {ex}");
-            _popupSystem.ShowPopup(PopupSystem.Messages.ActionError);
-        }
-    }
-
-
-    private void SelectorSelectionChanged(Template? oldSelection, Template? newSelection, in TemplateFileSystemSelector.TemplateState state)
+    private void SelectorSelectionChanged()
     {
         if (!_isEditorEnablePending)
             return;
 
         _isEditorEnablePending = false;
 
-        _boneEditor.EnableEditor(_selector.Selected!);
+        //Ugly hack because selection isn't yet changed at the time this is executed.
+        //I don't like it, but I'm dealing with rewriting the entire UI right now, this isn't a priority.
+        _frameworkManager.RegisterDelayed("editorenable", () => _boneEditor.EnableEditor(Selection), TimeSpan.FromMilliseconds(500));
     }
 
-    private void OnEditorEvent(TemplateEditorEvent.Type type, Template? template)
+    private void OnEditorEvent(in TemplateEditorEvent.Arguments args)
     {
+        var (type, template) = args;
         if (type != TemplateEditorEvent.Type.EditorEnableRequestedStage2)
             return;
 
-        if(template == null)
+        if (template == null)
             return;
 
         (bool isEditorAllowed, bool isEditorActive) = CanToggleEditor();
@@ -263,13 +170,13 @@ public class TemplatePanel : IDisposable
         if (!isEditorAllowed || isEditorActive)
             return;
 
-        if(_selector.Selected != template)
+        if (_fileSystem.Selection.Selection == null || Selection != template)
         {
-            _selector.SelectByValue(template);
-
             _isEditorEnablePending = true;
+
+            _fileSystem.Selection.Select(template.Node!, true);
         }
         else
-            _boneEditor.EnableEditor(_selector.Selected!);
+            _boneEditor.EnableEditor(Selection);
     }
 }

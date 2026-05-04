@@ -1,14 +1,12 @@
-﻿using Dalamud.Hooking;
-using Dalamud.Plugin.Services;
-using System;
-using System.Runtime.InteropServices;
-using OtterGui.Log;
+﻿using CustomizePlus.Armatures.Services;
+using CustomizePlus.Configuration.Data;
 using CustomizePlus.Core.Data;
 using CustomizePlus.Game.Services;
-using CustomizePlus.Configuration.Data;
 using CustomizePlus.Profiles;
-using CustomizePlus.Armatures.Services;
+using Dalamud.Hooking;
+using Dalamud.Plugin.Services;
 using Penumbra.GameData.Interop;
+using System.Runtime.InteropServices;
 
 namespace CustomizePlus.Core.Services;
 

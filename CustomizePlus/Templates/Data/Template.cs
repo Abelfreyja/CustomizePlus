@@ -1,13 +1,9 @@
-﻿using CustomizePlus.Api.Data;
+using CustomizePlus.Api.Data;
 using CustomizePlus.Core.Data;
 using CustomizePlus.Core.Extensions;
 using CustomizePlus.Core.Services;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using OtterGui.Classes;
-using System;
-using System.Collections.Generic;
-using System.IO;
 
 namespace CustomizePlus.Templates.Data;
 
@@ -15,11 +11,11 @@ namespace CustomizePlus.Templates.Data;
 ///     Encapsulates the user-controlled aspects of a template, ie all of
 ///     the information that gets saved to disk by the plugin.
 /// </summary>
-public sealed class Template : ISavable
+public sealed class Template : ISavable, IFileSystemValue<Template>
 {
     public const int Version = Constants.ConfigurationVersion;
 
-    public LowerString Name { get; internal set; } = "Template";
+    public string Name { get; internal set; } = "Template";
 
     public DateTimeOffset CreationDate { get; internal set; } = DateTime.UtcNow;
     public DateTimeOffset ModifiedDate { get; internal set; } = DateTime.UtcNow;
@@ -30,6 +26,15 @@ public sealed class Template : ISavable
 
     public string Incognito
         => UniqueId.ToString()[..8];
+
+    public int Index { get; internal set; }
+
+    public DataPath Path { get; } = new();
+
+    public IFileSystemData<Template>? Node { get; set; }
+
+    string IFileSystemValue.DisplayName
+        => Name;
 
     public Dictionary<string, BoneTransform> Bones { get; init; } = new();
 
@@ -76,12 +81,12 @@ public sealed class Template : ISavable
 
     public override string ToString()
     {
-        return $"Template '{Name.Text.Incognify()}' with {Bones.Count} bone edits [{UniqueId}]";
+        return $"Template '{Name.Incognify()}' with {Bones.Count} bone edits [{UniqueId}]";
     }
 
     #region Serialization
 
-    public new JObject JsonSerialize()
+    public JObject JsonSerialize()
     {
         var ret = new JObject()
         {
@@ -89,7 +94,7 @@ public sealed class Template : ISavable
             ["UniqueId"] = UniqueId,
             ["CreationDate"] = CreationDate,
             ["ModifiedDate"] = ModifiedDate,
-            ["Name"] = Name.Text,
+            ["Name"] = Name,
             ["Bones"] = JObject.FromObject(Bones),
             ["IsWriteProtected"] = IsWriteProtected
         };
@@ -106,12 +111,12 @@ public sealed class Template : ISavable
         var version = obj["Version"]?.ToObject<int>() ?? 0;
         return version switch
         {
-            4 or 5 => LoadV5(obj),
-            _ => throw new Exception("The design to be loaded has no valid Version."),
+            4 or 5 or 6 => LoadV6(obj),
+            _ => throw new Exception("The template to be loaded has no valid Version."),
         };
     }
 
-    private static Template LoadV5(JObject obj)
+    private static Template LoadV6(JObject obj)
     {
         var creationDate = obj["CreationDate"]?.ToObject<DateTimeOffset>() ?? throw new ArgumentNullException("CreationDate");
 
@@ -119,13 +124,15 @@ public sealed class Template : ISavable
         {
             CreationDate = creationDate,
             UniqueId = obj["UniqueId"]?.ToObject<Guid>() ?? throw new ArgumentNullException("UniqueId"),
-            Name = new LowerString(obj["Name"]?.ToObject<string>()?.Trim() ?? throw new ArgumentNullException("Name")),
+            Name = obj["Name"]?.ToObject<string>() ?? throw new ArgumentNullException("Name"),
             ModifiedDate = obj["ModifiedDate"]?.ToObject<DateTimeOffset>() ?? creationDate,
             Bones = obj["Bones"]?.ToObject<Dictionary<string, BoneTransform>>() ?? throw new ArgumentNullException("Bones"),
             IsWriteProtected = obj["IsWriteProtected"]?.ToObject<bool>() ?? false
         };
         if (template.ModifiedDate < creationDate)
             template.ModifiedDate = creationDate;
+
+        ReadFileSystemPath(obj, template.Path);
 
         return template;
     }
@@ -134,21 +141,47 @@ public sealed class Template : ISavable
 
     #region ISavable
 
-    public string ToFilename(FilenameService fileNames)
+    public string ToFilePath(FilenameService fileNames)
         => fileNames.TemplateFile(this);
 
-    public void Save(StreamWriter writer)
+    public void Save(Stream stream)
     {
+        using var writer = new StreamWriter(stream);
         using var j = new JsonTextWriter(writer)
         {
             Formatting = Formatting.Indented,
         };
         var obj = JsonSerialize();
+        WriteFileSystemPath(obj);
         obj.WriteTo(j);
     }
 
     public string LogName(string fileName)
-        => Path.GetFileNameWithoutExtension(fileName);
+        => System.IO.Path.GetFileNameWithoutExtension(fileName);
 
     #endregion
+
+    string IFileSystemValue.Identifier
+        => UniqueId.ToString();
+
+    private static void ReadFileSystemPath(JObject obj, DataPath path)
+    {
+        if (obj["FileSystemPath"] is not JObject pathObj)
+            return;
+
+        path.Folder = pathObj["Folder"]?.ToObject<string>() ?? string.Empty;
+        path.SortName = pathObj["SortName"]?.ToObject<string>();
+    }
+
+    private void WriteFileSystemPath(JObject obj)
+    {
+        if (Path.IsDefault)
+            return;
+
+        obj["FileSystemPath"] = new JObject
+        {
+            ["Folder"] = Path.Folder,
+            ["SortName"] = Path.SortName,
+        };
+    }
 }

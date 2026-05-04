@@ -1,6 +1,4 @@
-﻿using System.Numerics;
-
-namespace CustomizePlus.UI.Windows;
+﻿namespace CustomizePlus.UI.Windows;
 
 public partial class PopupSystem
 {
@@ -30,23 +28,23 @@ public partial class PopupSystem
 
     private void RegisterMessages()
     {
-        RegisterPopup(Messages.ActionError, "Error while performing selected action.\nDetails have been printed to Dalamud log (/xllog in chat).");
-        RegisterPopup(Messages.ActionDone, "Action performed successfully.");
+        RegisterPopup(Messages.ActionError, "Action Failed", "Error while performing selected action.\nDetails have been printed to Dalamud log (/xllog in chat).");
+        RegisterPopup(Messages.ActionDone, "Action Complete", "Action performed successfully.");
 
-        RegisterPopup(Messages.FantasiaPlusDetected, "Customize+ detected that you have Fantasia+ installed.\nPlease delete or turn it off and restart your game to use Customize+.");
+        RegisterPopup(Messages.FantasiaPlusDetected, "Fantasia+ Detected", "Customize+ detected that you have Fantasia+ installed.\nPlease delete or turn it off and restart your game to use Customize+.");
 
-        RegisterPopup(Messages.IPCProfileRemembered, "Current profile has been copied into memory");
-        RegisterPopup(Messages.IPCGetProfileByIdRemembered, "GetProfileByUniqueId result has been copied into memory");
-        RegisterPopup(Messages.IPCSetProfileToChrDone, "SetProfileToCharacter has been called with data from memory, profile id printed to log");
-        RegisterPopup(Messages.IPCRevertDone, "DeleteTemporaryProfileByUniqueId has been called");
-        RegisterPopup(Messages.IPCCopiedToClipboard, "Copied into clipboard");
-        RegisterPopup(Messages.IPCSuccessfullyExecuted, "Successfully executed");
-        RegisterPopup(Messages.IPCEnableProfileByIdDone, "Enable profile by id has been called");
-        RegisterPopup(Messages.IPCDisableProfileByIdDone, "Disable profile by id has been called");
+        RegisterPopup(Messages.IPCProfileRemembered, "Profile Copied", "Current profile has been copied into memory.");
+        RegisterPopup(Messages.IPCGetProfileByIdRemembered, "Profile Copied", "GetProfileByUniqueId result has been copied into memory.");
+        RegisterPopup(Messages.IPCSetProfileToChrDone, "IPC Executed", "SetProfileToCharacter has been called with data from memory. The profile ID was printed to the log.");
+        RegisterPopup(Messages.IPCRevertDone, "IPC Executed", "DeleteTemporaryProfileByUniqueId has been called.");
+        RegisterPopup(Messages.IPCCopiedToClipboard, "Copied", "Copied into clipboard.");
+        RegisterPopup(Messages.IPCSuccessfullyExecuted, "IPC Executed", "Successfully executed.");
+        RegisterPopup(Messages.IPCEnableProfileByIdDone, "IPC Executed", "Enable profile by ID has been called.");
+        RegisterPopup(Messages.IPCDisableProfileByIdDone, "IPC Executed", "Disable profile by ID has been called.");
 
-        RegisterPopup(Messages.TemplateEditorActiveWarning, "You need to stop bone editing before doing this action");
-        RegisterPopup(Messages.ClipboardDataUnsupported, "Clipboard data you are trying to use cannot be used in this version of Customize+.");
+        RegisterPopup(Messages.TemplateEditorActiveWarning, "Bone Editing Active", "You need to stop bone editing before doing this action.");
+        RegisterPopup(Messages.ClipboardDataUnsupported, "Unsupported Clipboard Data", "Clipboard data you are trying to use cannot be used in this version of Customize+.");
 
-        RegisterPopup(Messages.ClipboardDataNotLongTerm, "Warning: clipboard data is not designed to be used as long-term way of storing your templates.\nCompatibility of copied data between different Customize+ versions is not guaranteed.", true, new Vector2(5, 10));
+        RegisterPopup(Messages.ClipboardDataNotLongTerm, "Clipboard Warning", "Clipboard data is not designed to be used as long-term way of storing templates.\nCompatibility of copied data between different Customize+ versions is not guaranteed.", true, new Vector2(5, 10));
     }
 }

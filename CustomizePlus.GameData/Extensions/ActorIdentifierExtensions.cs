@@ -101,7 +101,7 @@ public static class ActorIdentifierExtensions
                 _ => " (Retainer)",
             }}",
             IdentifierType.Owned => $" ({identifier.Kind switch {
-                ObjectKind.MountType => "Mount",
+                ObjectKind.Mount => "Mount",
                 ObjectKind.Companion => "Companion",
                 ObjectKind.Ornament => "Accessory",
                 _ => $"Owned {identifier.Kind}",
@@ -130,7 +130,7 @@ public static class ActorIdentifierExtensions
             case IdentifierType.Owned:
                 return
                     identifier.Kind == ObjectKind.BattleNpc ||
-                    //identifier.Kind == ObjectKind.MountType ||
+                    //identifier.Kind == ObjectKind.Mount ||
                     identifier.Kind == ObjectKind.Companion ||
                     identifier.Kind == ObjectKind.Ornament;
             default:

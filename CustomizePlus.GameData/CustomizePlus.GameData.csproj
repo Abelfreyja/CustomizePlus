@@ -1,10 +1,11 @@
-﻿<Project Sdk="Dalamud.NET.Sdk/14.0.2">
+﻿<Project Sdk="Dalamud.NET.Sdk/15.0.0">
 
   <PropertyGroup>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\submodules\Luna\Luna\Luna.csproj" />
     <ProjectReference Include="..\submodules\Penumbra.GameData\Penumbra.GameData.csproj" />
   </ItemGroup>
 

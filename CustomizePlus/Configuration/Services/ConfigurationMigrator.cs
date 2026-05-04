@@ -1,34 +1,29 @@
-﻿using OtterGui.Classes;
-using OtterGui.Log;
+using CustomizePlus.Configuration.Data;
 using CustomizePlus.Core.Data;
 using CustomizePlus.Core.Services;
-using CustomizePlus.Configuration.Data;
-using CustomizePlus.Core.Events;
+using Dalamud.Game.ClientState.Keys;
 using Dalamud.Interface.ImGuiNotification;
+using Newtonsoft.Json.Linq;
 
 namespace CustomizePlus.Configuration.Services;
 
 public class ConfigurationMigrator
 {
+    private readonly MessageService _messageService; //we can't use popups here since they rely on PluginConfiguration and using them here hangs plugin loading
     private readonly SaveService _saveService;
     private readonly BackupService _backupService;
-    private readonly MessageService _messageService; //we can't use popups here since they rely on PluginConfiguration and using them here hangs plugin loading
     private readonly Logger _logger;
-    private readonly ReloadEvent _reloadEvent;
 
     public ConfigurationMigrator(
+        MessageService messageService,
         SaveService saveService,
         BackupService backupService,
-        MessageService messageService,
-        Logger logger,
-        ReloadEvent reloadEvent
-        )
+        Logger logger)
     {
+        _messageService = messageService;
         _saveService = saveService;
         _backupService = backupService;
-        _messageService = messageService;
         _logger = logger;
-        _reloadEvent = reloadEvent;
     }
 
     public void Migrate(PluginConfiguration config)
@@ -51,7 +46,28 @@ public class ConfigurationMigrator
             _logger.Information("Migrating configuration from V4 to V5 (ChildScaling feature)");
         }
 
+        var data = JObject.Parse(File.ReadAllText(_saveService.FileNames.ConfigurationFile));
+
+        if (configVersion == 5)
+        {
+            _logger.Information("Migrating configuration from V4 to V5");
+
+            _backupService.CreateMigrationBackup("pre_filesystem_update",
+                _saveService.FileNames.MigrationProfileFileSystem, _saveService.FileNames.MigrationTemplateFileSystem);
+
+            if (data["UISettings"] is JObject uiSettings && uiSettings["DeleteTemplateModifier"] is JObject deleteModifier)
+            {
+                _logger.Debug("Migrating DeleteTemplateModifier");
+
+                var modifier1 = deleteModifier["Modifier1"]?["Modifier"]?.Value<ushort>() ?? (ushort)VirtualKey.CONTROL;
+                var modifier2 = deleteModifier["Modifier2"]?["Modifier"]?.Value<ushort>() ?? (ushort)VirtualKey.SHIFT;
+                config.UISettings.DeleteModifier = new DoubleModifier((VirtualKey)modifier1, (VirtualKey)modifier2);
+
+                config.Save();
+            }
+        }
+
         config.Version = Constants.ConfigurationVersion;
-        _saveService.ImmediateSave(config);
+        return;
     }
 }

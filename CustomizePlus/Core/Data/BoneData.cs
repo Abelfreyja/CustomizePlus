@@ -1,9 +1,6 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using Dalamud.Utility;
 using System.Text;
 using System.Text.RegularExpressions;
-using Dalamud.Utility;
 
 namespace CustomizePlus.Core.Data;
 
@@ -615,7 +612,7 @@ public static class BoneData //todo: DI, do not show IVCS unless IVCS is install
             }
             catch (Exception e)
             {
-                Plugin.Logger.Error($"Failed to dynamically parse bones for hairstyle of '{boneNames[index]}'");
+                CustomizePlus.Logger.Error($"Failed to dynamically parse bones for hairstyle of '{boneNames[index]}'");
             }
 
             index++;

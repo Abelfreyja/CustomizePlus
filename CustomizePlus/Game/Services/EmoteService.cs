@@ -1,6 +1,4 @@
-using Penumbra.GameData.Interop;
-using OtterGui.Log;
-using System.Linq;
+﻿using Penumbra.GameData.Interop;
 
 namespace CustomizePlus.Game.Services;
 

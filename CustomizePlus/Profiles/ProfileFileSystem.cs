@@ -1,129 +1,72 @@
-﻿using OtterGui.Filesystem;
-using OtterGui.Log;
-using System.IO;
-using System.Text.RegularExpressions;
-using System;
-using OtterGui.Classes;
 using CustomizePlus.Core.Services;
-using CustomizePlus.Profiles.Data;
 using CustomizePlus.Profiles.Events;
 using Dalamud.Interface.ImGuiNotification;
 
 namespace CustomizePlus.Profiles;
 
-public class ProfileFileSystem : FileSystem<Profile>, IDisposable, ISavable
+public sealed class ProfileFileSystem : BaseFileSystem, IDisposable
 {
-    private readonly ProfileManager _profileManager;
-    private readonly SaveService _saveService;
     private readonly ProfileChanged _profileChanged;
-    private readonly MessageService _messageService;
-    private readonly Logger _logger;
+    private readonly ProfileFileSystemSaver _saver;
 
     public ProfileFileSystem(
-        ProfileManager profileManager,
+        LunaLogger log,
         SaveService saveService,
-        ProfileChanged profileChanged,
-        MessageService messageService,
-        Logger logger)
+        ProfileManager profileManager,
+        ProfileChanged profileChanged)
+        : base("ProfileFileSystem", log, true)
     {
-        _profileManager = profileManager;
-        _saveService = saveService;
         _profileChanged = profileChanged;
-        _messageService = messageService;
-        _logger = logger;
+
+        _saver = new ProfileFileSystemSaver(log, this, saveService, profileManager);
 
         _profileChanged.Subscribe(OnProfileChange, ProfileChanged.Priority.ProfileFileSystem);
-
-        Changed += OnChange;
-
-        Reload();
+        _saver.Load();
     }
 
     public void Dispose()
     {
         _profileChanged.Unsubscribe(OnProfileChange);
+        _saver.Dispose();
+        Selection.Dispose();
     }
 
-    private void OnProfileChange(ProfileChanged.Type type, Profile? profile, object? data)
+    private void OnProfileChange(in ProfileChanged.Arguments arguments)
     {
-        switch (type)
+        switch (arguments.Type)
         {
+            case ProfileChanged.Type.ReloadedAll: _saver.Load(); break;
             case ProfileChanged.Type.Created:
                 var parent = Root;
-                if (data is string path)
+                var folder = arguments.Profile!.Path.Folder;
+                if (folder.Length > 0)
                     try
                     {
-                        parent = FindOrCreateAllFolders(path);
+                        parent = FindOrCreateAllFolders(folder);
                     }
                     catch (Exception ex)
                     {
-                        _messageService.NotificationMessage(ex, $"Could not move profile to {path} because the folder could not be created.", NotificationType.Error);
+                        CustomizePlus.Messager.NotificationMessage(ex,
+                            $"Could not move profile to {folder} because the folder could not be created.",
+                            NotificationType.Error);
                     }
 
-                CreateDuplicateLeaf(parent, profile.Name.Text, profile);
-
-                return;
+                var (data, _) = CreateDuplicateDataNode(parent, arguments.Profile!.Path.SortName ?? arguments.Profile.Name, arguments.Profile);
+                Selection.Select(data, true);
+                break;
             case ProfileChanged.Type.Deleted:
-                if (TryGetValue(profile, out var leaf1))
-                    Delete(leaf1);
-                return;
-            case ProfileChanged.Type.ReloadedAll:
-                Reload();
-                return;
-            case ProfileChanged.Type.Renamed when data is string oldName:
-                if (!TryGetValue(profile, out var leaf2))
-                    return;
+                if (arguments.Profile!.Node is { } node)
+                {
+                    if (node.Selected)
+                        Selection.UnselectAll();
+                    Delete(node);
+                }
 
-                var old = oldName.FixName();
-                if (old == leaf2.Name || leaf2.Name.IsDuplicateName(out var baseName, out _) && baseName == old)
-                    RenameWithDuplicates(leaf2, profile.Name);
-                return;
+                break;
+            case ProfileChanged.Type.Renamed when arguments.Profile!.Path.SortName is null:
+                RenameWithDuplicates(arguments.Profile.Node!, arguments.Profile.Path.GetIntendedName(arguments.Profile.Name));
+                break;
+                // TODO: Maybe add path changes?
         }
-    }
-
-    private void Reload()
-    {
-        if (!File.Exists(_saveService.FileNames.ProfileFileSystem))
-        {
-            _logger.Debug("WORKAROUND: saving filesystem file");
-            _saveService.ImmediateSaveSync(this);
-        }
-
-        if (Load(new FileInfo(_saveService.FileNames.ProfileFileSystem), _profileManager.Profiles, ProfileToIdentifier, ProfileToName))
-            _saveService.ImmediateSave(this);
-
-        _logger.Debug("Reloaded profile filesystem.");
-    }
-
-    private void OnChange(FileSystemChangeType type, IPath _1, IPath? _2, IPath? _3)
-    {
-        if (type != FileSystemChangeType.Reload)
-            _saveService.QueueSave(this);
-    }
-
-    // Used for saving and loading.
-    private static string ProfileToIdentifier(Profile profile)
-        => profile.UniqueId.ToString();
-
-    private static string ProfileToName(Profile profile)
-        => profile.Name.Text.FixName();
-
-    private static bool ProfileHasDefaultPath(Profile profile, string fullPath)
-    {
-        var regex = new Regex($@"^{Regex.Escape(ProfileToName(profile))}( \(\d+\))?$");
-        return regex.IsMatch(fullPath);
-    }
-
-    private static (string, bool) SaveProfile(Profile profile, string fullPath)
-        // Only save pairs with non-default paths.
-        => ProfileHasDefaultPath(profile, fullPath)
-            ? (string.Empty, false)
-            : (ProfileToIdentifier(profile), true);
-
-    public string ToFilename(FilenameService fileNames) => fileNames.ProfileFileSystem;
-
-    public void Save(StreamWriter writer)
-    {
-        SaveToFile(writer, SaveProfile, true);
     }
 }

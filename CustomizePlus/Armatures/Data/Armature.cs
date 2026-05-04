@@ -1,12 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using FFXIVClientStructs.FFXIV.Client.Graphics.Scene;
-using Penumbra.GameData.Actors;
-using CustomizePlus.Core.Data;
+﻿using CustomizePlus.Core.Data;
+using CustomizePlus.GameData.Extensions;
 using CustomizePlus.Profiles.Data;
 using CustomizePlus.Templates.Data;
-using CustomizePlus.GameData.Extensions;
+using FFXIVClientStructs.FFXIV.Client.Graphics.Scene;
+using Penumbra.GameData.Actors;
 
 namespace CustomizePlus.Armatures.Data;
 
@@ -151,7 +148,7 @@ public unsafe class Armature
 
         Profile.Armatures.Add(this);
 
-        Plugin.Logger.Debug($"Instantiated {this}, attached to {Profile}");
+        CustomizePlus.Logger.Debug($"Instantiated {this}, attached to {Profile}");
     }
 
     /// <inheritdoc/>
@@ -183,16 +180,16 @@ public unsafe class Armature
             }
 
             //handle hair separately because different hairstyles can have the same amount of bones.
-            if(cBase->Skeleton->PartialSkeletonCount > 2)
+            if (cBase->Skeleton->PartialSkeletonCount > 2)
             {
                 var newPose = cBase->Skeleton->PartialSkeletons[2].GetHavokPose(Constants.TruePoseIndex);
 
-                if(newPose != null)
+                if (newPose != null)
                 {
-                    if(newPose->Skeleton->Bones.Length != _partialSkeletons[2].Length)
+                    if (newPose->Skeleton->Bones.Length != _partialSkeletons[2].Length)
                         return true;
 
-                    for(var i = 0; i < newPose->Skeleton->Bones.Length; i++)
+                    for (var i = 0; i < newPose->Skeleton->Bones.Length; i++)
                     {
                         if (newPose->Skeleton->Bones[i].Name.String != _partialSkeletons[2][i].BoneName)
                             return true;
@@ -218,7 +215,7 @@ public unsafe class Armature
 
         RebuildBoneTemplateBinding(); //todo: intentionally not calling ArmatureChanged.Type.Updated because this is pending rewrite
 
-        Plugin.Logger.Debug($"Rebuilt {this}");
+        CustomizePlus.Logger.Debug($"Rebuilt {this}");
     }
 
     public BoneTransform? GetAppliedBoneTransform(string boneName)
@@ -229,7 +226,7 @@ public unsafe class Armature
             if (template.Bones.TryGetValue(boneName, out var boneTransform))
                 return boneTransform;
             else
-                Plugin.Logger.Error($"Bone {boneName} is null in template {template.UniqueId}");
+                CustomizePlus.Logger.Error($"Bone {boneName} is null in template {template.UniqueId}");
         }
 
         return null;
@@ -240,7 +237,7 @@ public unsafe class Armature
     /// </summary>
     public void UpdateLastSeen(DateTime? dateTime = null)
     {
-        if(dateTime == null)
+        if (dateTime == null)
             dateTime = DateTime.UtcNow;
 
         LastSeen = (DateTime)dateTime;
@@ -270,7 +267,7 @@ public unsafe class Armature
                     {
                         //time to build a new bone
                         ModelBone newBone = new(arm, boneName, pSkeleIndex, boneIndex);
-                        Plugin.Logger.Verbose($"Created new bone: {boneName} on {pSkeleIndex}->{boneIndex} arm: {arm._localId}");
+                        CustomizePlus.Logger.Verbose($"Created new bone: {boneName} on {pSkeleIndex}->{boneIndex} arm: {arm._localId}");
 
                         if (currentPose->Skeleton->ParentIndices[boneIndex] is short parentIndex
                             && parentIndex >= 0)
@@ -295,7 +292,7 @@ public unsafe class Armature
                     }
                     else
                     {
-                        Plugin.Logger.Error($"Failed to process bone @ <{pSkeleIndex}, {boneIndex}> while parsing bones from {cBase->ToString()}");
+                        CustomizePlus.Logger.Error($"Failed to process bone @ <{pSkeleIndex}, {boneIndex}> while parsing bones from {cBase->ToString()}");
                     }
                 }
             }
@@ -304,7 +301,7 @@ public unsafe class Armature
         }
         catch (Exception ex)
         {
-            Plugin.Logger.Error($"Error parsing armature skeleton from {cBase->ToString()}:\n\t{ex}");
+            CustomizePlus.Logger.Error($"Error parsing armature skeleton from {cBase->ToString()}:\n\t{ex}");
         }
 
         return newPartials;
@@ -328,7 +325,7 @@ public unsafe class Armature
         foreach (var bone in GetAllBones())
             bone.LinkToTemplate(BoneTemplateBinding.ContainsKey(bone.BoneName) ? BoneTemplateBinding[bone.BoneName] : null);
 
-        Plugin.Logger.Debug($"Rebuilt template binding for armature {_localId}");
+        CustomizePlus.Logger.Debug($"Rebuilt template binding for armature {_localId}");
     }
 
     private static bool AreTwinnedNames(string name1, string name2)

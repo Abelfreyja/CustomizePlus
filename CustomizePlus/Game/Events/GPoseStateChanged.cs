@@ -1,12 +1,13 @@
-﻿using OtterGui.Classes;
-
 namespace CustomizePlus.Game.Events;
 
 /// <summary>
 /// Triggered when GPose is entered/exited
 /// </summary>
-public sealed class GPoseStateChanged() : EventWrapper<GPoseStateChanged.Type, GPoseStateChanged.Priority>(nameof(GPoseStateChanged))
+public sealed class GPoseStateChanged(LunaLogger log)
+    : EventBase<GPoseStateChanged.Arguments, GPoseStateChanged.Priority>(nameof(GPoseStateChanged), log)
 {
+    public readonly record struct Arguments(Type Type);
+
     public enum Type
     {
         Entered,

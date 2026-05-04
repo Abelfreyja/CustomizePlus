@@ -1,8 +1,5 @@
 ﻿using Dalamud.Plugin;
-using OtterGui.Services;
-using System.Linq;
 using System.Reflection;
-using System;
 
 namespace CustomizePlus.Core.Services.Dalamud;
 
@@ -61,7 +58,7 @@ public class DalamudConfigService : IService
         }
         catch (Exception e)
         {
-            Plugin.Logger.Error($"Error while fetching Dalamud Config {fieldName}:\n{e}");
+            CustomizePlus.Logger.Error($"Error while fetching Dalamud Config {fieldName}:\n{e}");
             return false;
         }
     }

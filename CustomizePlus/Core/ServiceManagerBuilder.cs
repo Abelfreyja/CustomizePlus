@@ -6,7 +6,6 @@ using CustomizePlus.Configuration.Data;
 using CustomizePlus.Configuration.Services;
 using CustomizePlus.Core.Events;
 using CustomizePlus.Core.Services;
-using CustomizePlus.Core.Services.Dalamud;
 using CustomizePlus.Game.Events;
 using CustomizePlus.Game.Services;
 using CustomizePlus.Game.Services.GPose;
@@ -17,7 +16,6 @@ using CustomizePlus.Profiles;
 using CustomizePlus.Profiles.Events;
 using CustomizePlus.Templates;
 using CustomizePlus.Templates.Events;
-using CustomizePlus.UI;
 using CustomizePlus.UI.Windows;
 using CustomizePlus.UI.Windows.Controls;
 using CustomizePlus.UI.Windows.MainWindow;
@@ -27,14 +25,9 @@ using CustomizePlus.UI.Windows.MainWindow.Tabs.Profiles;
 using CustomizePlus.UI.Windows.MainWindow.Tabs.Templates;
 using Dalamud.Plugin;
 using Microsoft.Extensions.DependencyInjection;
-using OtterGui.Classes;
-using OtterGui.Log;
-using OtterGui.Raii;
-using OtterGui.Services;
 using Penumbra.GameData.Actors;
 using Penumbra.GameData.Interop;
 using Penumbra.GameData.Structs;
-using System.Collections.Generic;
 
 namespace CustomizePlus.Core;
 
@@ -42,9 +35,7 @@ public static class ServiceManagerBuilder
 {
     public static ServiceManager CreateProvider(IDalamudPluginInterface pi, Logger logger)
     {
-        EventWrapperBase.ChangeLogger(logger);
-
-        var services = new ServiceManager(logger)
+        var services = new ServiceManager(logger, "Customize+")
             .AddExistingService(logger)
             .AddCore()
             .AddEvents()
@@ -60,14 +51,14 @@ public static class ServiceManagerBuilder
             .AddDataLoaders()
             .AddApi();
 
-        DalamudServices.AddServices(services, pi);
+        services.AddDalamudServices(pi);
 
         services.AddIServices(typeof(EquipItem).Assembly);
-        services.AddIServices(typeof(Plugin).Assembly);
+        services.AddIServices(typeof(CustomizePlus).Assembly);
         services.AddIServices(typeof(CutsceneService).Assembly);
-        services.AddIServices(typeof(ImRaii).Assembly);
+        services.AddIServices(typeof(MessageService).Assembly);
 
-        services.CreateProvider();
+        services.BuildProvider();
 
         return services;
     }
@@ -97,13 +88,13 @@ public static class ServiceManagerBuilder
             .AddSingleton<SettingsTab>()
             // template
             .AddSingleton<TemplatesTab>()
-            .AddSingleton<TemplateFileSystemSelector>()
+            // .AddSingleton<TemplateFileSystemSelector>()
             .AddSingleton<TemplatePanel>()
             .AddSingleton<BoneEditorPanel>()
             // /template
             // profile
             .AddSingleton<ProfilesTab>()
-            .AddSingleton<ProfileFileSystemSelector>()
+            //.AddSingleton<ProfileFileSystemSelector>()
             .AddSingleton<ProfilePanel>()
             // /profile
             // messages
@@ -228,8 +219,7 @@ public static class ServiceManagerBuilder
         services
             .AddSingleton<ActorManager>()
             .AddSingleton<CutsceneService>()
-            .AddSingleton<GameEventManager>()
-            .AddSingleton(p => new CutsceneResolver(idx => (short)p.GetRequiredService<CutsceneService>().GetParentIndex(idx)))
+            .AddSingleton(p => new CutsceneResolver(idx => p.GetRequiredService<CutsceneService>().GetParentIndex(idx)))
             .AddSingleton<ActorObjectManager>();
 
         return services;

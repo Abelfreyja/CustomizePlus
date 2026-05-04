@@ -1,4 +1,4 @@
-﻿using CustomizePlus.Armatures.Data;
+using CustomizePlus.Armatures.Data;
 using CustomizePlus.Armatures.Events;
 using CustomizePlus.Core.Data;
 using CustomizePlus.Core.Extensions;
@@ -10,15 +10,9 @@ using CustomizePlus.Profiles.Data;
 using CustomizePlus.Profiles.Events;
 using CustomizePlus.Templates.Events;
 using Dalamud.Plugin.Services;
-using OtterGui.Classes;
-using OtterGui.Log;
 using Penumbra.GameData.Actors;
 using Penumbra.GameData.Enums;
 using Penumbra.GameData.Interop;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Numerics;
 
 namespace CustomizePlus.Armatures.Services;
 
@@ -166,7 +160,7 @@ public unsafe sealed class ArmatureManager : IDisposable
                 TryLinkSkeleton(newArm);
                 Armatures.Add(actorIdentifier, newArm);
                 _logger.Debug($"Added '{newArm}' for {actorIdentifier.IncognitoDebug()} to cache");
-                _event.Invoke(ArmatureChanged.Type.Created, newArm, activeProfile);
+                _event.Invoke(new ArmatureChanged.Arguments(ArmatureChanged.Type.Created, newArm, activeProfile));
 
                 continue;
             }
@@ -232,7 +226,7 @@ public unsafe sealed class ArmatureManager : IDisposable
                     }
                 }
 
-                _event.Invoke(ArmatureChanged.Type.Updated, armature, (activeProfile, oldProfile));
+                _event.Invoke(new ArmatureChanged.Arguments(ArmatureChanged.Type.Updated, armature, (activeProfile, oldProfile)));
             }
 
             //Needed because:
@@ -301,7 +295,7 @@ public unsafe sealed class ArmatureManager : IDisposable
         var cBase = actor.Model.AsCharacterBase;
 
         var isMount = actorIdentifier.Type == IdentifierType.Owned &&
-            actorIdentifier.Kind == Dalamud.Game.ClientState.Objects.Enums.ObjectKind.MountType;
+            actorIdentifier.Kind == Dalamud.Game.ClientState.Objects.Enums.ObjectKind.Mount;
 
         Actor? mountOwner = null;
         Armature? mountOwnerArmature = null;
@@ -414,11 +408,12 @@ public unsafe sealed class ArmatureManager : IDisposable
         Armatures.Remove(armature.ActorIdentifier);
         _logger.Debug($"Armature {armature} removed from cache");
 
-        _event.Invoke(ArmatureChanged.Type.Deleted, armature, reason);
+        _event.Invoke(new ArmatureChanged.Arguments(ArmatureChanged.Type.Deleted, armature, reason));
     }
 
-    private void OnTemplateChange(TemplateChanged.Type type, Templates.Data.Template? template, object? arg3)
+    private void OnTemplateChange(in TemplateChanged.Arguments args)
     {
+        var (type, template, arg3) = args;
         if (type is not TemplateChanged.Type.NewBone &&
             type is not TemplateChanged.Type.DeletedBone &&
             type is not TemplateChanged.Type.EditorCharacterChanged &&
@@ -434,7 +429,7 @@ public unsafe sealed class ArmatureManager : IDisposable
             {
                 foreach (var profile in _profileManager.GetProfilesUsingTemplate(template))
                 {
-                    _logger.Debug($"ArmatureManager.OnTemplateChange New/Deleted bone or character changed: {type}, template: {template.Name.Text.Incognify()}, profile: {profile.Name.Text.Incognify()}->{profile.Enabled}->{profile.Armatures.Count} armatures");
+                    _logger.Debug($"ArmatureManager.OnTemplateChange New/Deleted bone or character changed: {type}, template: {template.Name.Incognify()}, profile: {profile.Name.Incognify()}->{profile.Enabled}->{profile.Armatures.Count} armatures");
                     if (!profile.Enabled || profile.Armatures.Count == 0)
                         continue;
 
@@ -462,7 +457,7 @@ public unsafe sealed class ArmatureManager : IDisposable
             foreach (var armature in profile.Armatures)
                 armature.IsPendingProfileRebind = true;
 
-            _logger.Debug($"ArmatureManager.OnTemplateChange Editor profile character name changed, armature rebind scheduled: {type}, profile: {profile.Name.Text.Incognify()}->{profile.Enabled}, new name: {character.Incognito(null)}");
+            _logger.Debug($"ArmatureManager.OnTemplateChange Editor profile character name changed, armature rebind scheduled: {type}, profile: {profile.Name.Incognify()}->{profile.Enabled}, new name: {character.Incognito(null)}");
 
             return;
         }
@@ -473,7 +468,7 @@ public unsafe sealed class ArmatureManager : IDisposable
             ActorIdentifier actor;
             bool hasChanges;
 
-            if(type == TemplateChanged.Type.EditorEnabled)
+            if (type == TemplateChanged.Type.EditorEnabled)
                 actor = (ActorIdentifier)arg3;
             else
                 (actor, hasChanges) = ((ActorIdentifier, bool))arg3;
@@ -488,8 +483,9 @@ public unsafe sealed class ArmatureManager : IDisposable
         }
     }
 
-    private void OnProfileChange(ProfileChanged.Type type, Profile? profile, object? arg3)
+    private void OnProfileChange(in ProfileChanged.Arguments args)
     {
+        var (type, profile, arg3) = args;
         if (type is not ProfileChanged.Type.AddedTemplate &&
             type is not ProfileChanged.Type.RemovedTemplate &&
             type is not ProfileChanged.Type.EnabledTemplate &&
@@ -517,7 +513,7 @@ public unsafe sealed class ArmatureManager : IDisposable
             foreach (var armature in oldProfile.Armatures)
                 armature.IsPendingProfileRebind = true;
 
-            _logger.Debug($"ArmatureManager.OnProfileChange Profile no longer default/default for local player, armatures rebind scheduled: {type}, old profile: {oldProfile.Name.Text.Incognify()}->{oldProfile.Enabled}");
+            _logger.Debug($"ArmatureManager.OnProfileChange Profile no longer default/default for local player, armatures rebind scheduled: {type}, old profile: {oldProfile.Name.Incognify()}->{oldProfile.Enabled}");
 
             return;
         }
@@ -528,7 +524,7 @@ public unsafe sealed class ArmatureManager : IDisposable
             return;
         }
 
-        if(type == ProfileChanged.Type.PriorityChanged)
+        if (type == ProfileChanged.Type.PriorityChanged)
         {
             if (!profile.Enabled)
                 return;
@@ -569,7 +565,7 @@ public unsafe sealed class ArmatureManager : IDisposable
                 return;
             }
 
-            foreach(var character in profile.Characters)
+            foreach (var character in profile.Characters)
             {
                 if (!character.IsValid)
                     continue;
@@ -586,7 +582,7 @@ public unsafe sealed class ArmatureManager : IDisposable
 
         if (type == ProfileChanged.Type.TemporaryProfileAdded)
         {
-            foreach(var character in profile.Characters)
+            foreach (var character in profile.Characters)
             {
                 if (!character.IsValid || !Armatures.ContainsKey(character))
                     continue;
@@ -601,7 +597,7 @@ public unsafe sealed class ArmatureManager : IDisposable
                 armature.IsPendingProfileRebind = true;
             }
 
-            _logger.Debug($"ArmatureManager.OnProfileChange TemporaryProfileAdded, calling rebind for existing armature: {type}, data payload: {arg3?.ToString()}, profile: {profile.Name.Text.Incognify()}->{profile.Enabled}");
+            _logger.Debug($"ArmatureManager.OnProfileChange TemporaryProfileAdded, calling rebind for existing armature: {type}, data payload: {arg3?.ToString()}, profile: {profile.Name.Incognify()}->{profile.Enabled}");
 
             return;
         }
@@ -619,8 +615,8 @@ public unsafe sealed class ArmatureManager : IDisposable
             foreach (var armature in GetArmaturesForCharacter(actorIdentifier))
                 armature.IsPendingProfileRebind = true;
 
-            _logger.Debug($"ArmatureManager.OnProfileChange AC/RC, armature rebind scheduled: {type}, data payload: {arg3?.ToString()?.Incognify()}, profile: {profile.Name.Text.Incognify()}->{profile.Enabled}");
-            
+            _logger.Debug($"ArmatureManager.OnProfileChange AC/RC, armature rebind scheduled: {type}, data payload: {arg3?.ToString()?.Incognify()}, profile: {profile.Name.Incognify()}->{profile.Enabled}");
+
             return;
         }
 
@@ -638,7 +634,7 @@ public unsafe sealed class ArmatureManager : IDisposable
                 armature.IsPendingProfileRebind = true;
             }
 
-            _logger.Debug($"ArmatureManager.OnProfileChange DEL/TPD, armature rebind scheduled: {type}, data payload: {arg3?.ToString()?.Incognify()}, profile: {profile.Name.Text.Incognify()}->{profile.Enabled}");
+            _logger.Debug($"ArmatureManager.OnProfileChange DEL/TPD, armature rebind scheduled: {type}, data payload: {arg3?.ToString()?.Incognify()}, profile: {profile.Name.Incognify()}->{profile.Enabled}");
 
             return;
         }

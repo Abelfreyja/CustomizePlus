@@ -1,7 +1,4 @@
-﻿using System;
-using System.Linq;
-using System.Text;
-using CustomizePlus.Armatures.Services;
+﻿using CustomizePlus.Armatures.Services;
 using CustomizePlus.Configuration.Data;
 using CustomizePlus.Core.Data;
 using CustomizePlus.Core.Extensions;
@@ -9,6 +6,7 @@ using CustomizePlus.Core.Helpers;
 using CustomizePlus.Profiles;
 using CustomizePlus.Templates;
 using Dalamud.Plugin;
+using System.Text;
 
 namespace CustomizePlus.Core.Services;
 
@@ -76,7 +74,7 @@ public class SupportLogBuilderService
         {
             sb.Append($">   > =====\n");
             sb.Append($">   > **`{profile.ToString(),-32}`*\n");
-            sb.Append($">   > **`Name:                       `** {profile.Name.Text.Incognify()}\n");
+            sb.Append($">   > **`Name:                       `** {profile.Name.Incognify()}\n");
             sb.Append($">   > **`Type:                       `** {profile.ProfileType} \n");
             sb.Append($">   > **`Characters:             `** {string.Join(',', profile.Characters.Select(x => x.Incognito(null)))}\n");
             sb.Append($">   > **`Templates:`**\n");

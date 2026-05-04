@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Numerics;
-using CustomizePlus.Core.Data;
+﻿using CustomizePlus.Core.Data;
 using CustomizePlus.Core.Extensions;
 using CustomizePlus.Templates.Data;
 using FFXIVClientStructs.FFXIV.Client.Graphics.Scene;
@@ -101,7 +97,7 @@ public unsafe class ModelBone
 
             CustomizedTransform = null;
 
-            Plugin.Logger.Verbose($"Unlinked {BoneName} from all templates");
+            CustomizePlus.Logger.Verbose($"Unlinked {BoneName} from all templates");
 
             return true;
         }
@@ -109,7 +105,7 @@ public unsafe class ModelBone
         if (!template.Bones.ContainsKey(BoneName))
             return false;
 
-        Plugin.Logger.Verbose($"Linking {BoneName} to {template.Name}");
+        CustomizePlus.Logger.Verbose($"Linking {BoneName} to {template.Name}");
         CustomizedTransform = template.Bones[BoneName];
 
         return true;

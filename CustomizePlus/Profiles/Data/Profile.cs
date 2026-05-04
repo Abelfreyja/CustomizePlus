@@ -1,7 +1,3 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using CustomizePlus.Armatures.Data;
 using CustomizePlus.Core.Extensions;
 using CustomizePlus.Core.Services;
@@ -9,7 +5,6 @@ using CustomizePlus.Profiles.Enums;
 using CustomizePlus.Templates.Data;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using OtterGui.Classes;
 using Penumbra.GameData.Actors;
 
 namespace CustomizePlus.Profiles.Data;
@@ -18,7 +13,7 @@ namespace CustomizePlus.Profiles.Data;
 ///     Encapsulates the user-controlled aspects of a character profile, ie all of
 ///     the information that gets saved to disk by the plugin.
 /// </summary>
-public sealed class Profile : ISavable
+public sealed class Profile : ISavable, IFileSystemValue<Profile>
 {
     public const int Version = 5;
 
@@ -30,7 +25,7 @@ public sealed class Profile : ISavable
 
     public List<ActorIdentifier> Characters { get; set; } = new();
 
-    public LowerString Name { get; set; } = LowerString.Empty;
+    public string Name { get; set; }
 
     public bool Enabled { get; set; }
     public DateTimeOffset CreationDate { get; set; } = DateTime.UtcNow;
@@ -59,6 +54,15 @@ public sealed class Profile : ISavable
     public string Incognito
         => UniqueId.ToString()[..8];
 
+    public int Index { get; internal set; }
+
+    public DataPath Path { get; } = new();
+
+    public IFileSystemData<Profile>? Node { get; set; }
+
+    string IFileSystemValue.DisplayName
+        => Name;
+
     public Profile()
     {
         _localId = _nextGlobalId++;
@@ -85,12 +89,12 @@ public sealed class Profile : ISavable
 
     public override string ToString()
     {
-        return $"Profile '{Name.Text.Incognify()}' on {string.Join(',', Characters.Select(x => x.Incognito(null)))} [{UniqueId}]";
+        return $"Profile '{Name.Incognify()}' on {string.Join(',', Characters.Select(x => x.Incognito(null)))} [{UniqueId}]";
     }
 
     #region Serialization
 
-    public new JObject JsonSerialize()
+    public JObject JsonSerialize()
     {
         var ret = new JObject()
         {
@@ -99,7 +103,7 @@ public sealed class Profile : ISavable
             ["CreationDate"] = CreationDate,
             ["ModifiedDate"] = ModifiedDate,
             ["Characters"] = SerializeCharacters(),
-            ["Name"] = Name.Text,
+            ["Name"] = Name,
             ["Enabled"] = Enabled,
             ["IsWriteProtected"] = IsWriteProtected,
             ["Priority"] = Priority,
@@ -139,25 +143,51 @@ public sealed class Profile : ISavable
 
     #region ISavable
 
-    public string ToFilename(FilenameService fileNames)
+    public string ToFilePath(FilenameService fileNames)
         => fileNames.ProfileFile(this);
 
-    public void Save(StreamWriter writer)
+    public void Save(Stream stream)
     {
         //saving of temporary profiles is not allowed
         if (IsTemporary)
             return;
 
+        using var writer = new StreamWriter(stream);
         using var j = new JsonTextWriter(writer)
         {
             Formatting = Formatting.Indented,
         };
         var obj = JsonSerialize();
+        WriteFileSystemPath(obj);
         obj.WriteTo(j);
     }
 
     public string LogName(string fileName)
-        => Path.GetFileNameWithoutExtension(fileName);
+        => System.IO.Path.GetFileNameWithoutExtension(fileName);
 
     #endregion
+
+    public string Identifier
+        => UniqueId.ToString();
+
+    internal static void ReadFileSystemPath(JObject obj, DataPath path)
+    {
+        if (obj["FileSystemPath"] is not JObject pathObj)
+            return;
+
+        path.Folder = pathObj["Folder"]?.ToObject<string>() ?? string.Empty;
+        path.SortName = pathObj["SortName"]?.ToObject<string>();
+    }
+
+    private void WriteFileSystemPath(JObject obj)
+    {
+        if (Path.IsDefault)
+            return;
+
+        obj["FileSystemPath"] = new JObject
+        {
+            ["Folder"] = Path.Folder,
+            ["SortName"] = Path.SortName,
+        };
+    }
 }

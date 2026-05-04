@@ -1,13 +1,15 @@
-﻿using CustomizePlus.Templates.Data;
-using OtterGui.Classes;
+using CustomizePlus.Templates.Data;
 
 namespace CustomizePlus.Templates.Events;
 
 /// <summary>
 /// Triggered when something related to template editor happens
 /// </summary>
-public class TemplateEditorEvent() : EventWrapper<TemplateEditorEvent.Type, Template?, TemplateEditorEvent.Priority>(nameof(TemplateEditorEvent))
+public class TemplateEditorEvent(LunaLogger log)
+    : EventBase<TemplateEditorEvent.Arguments, TemplateEditorEvent.Priority>(nameof(TemplateEditorEvent), log)
 {
+    public readonly record struct Arguments(Type Type, Template? Template);
+
     public enum Type
     {
         /// <summary>

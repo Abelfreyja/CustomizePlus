@@ -1,13 +1,15 @@
-﻿using CustomizePlus.Profiles.Data;
-using OtterGui.Classes;
+using CustomizePlus.Profiles.Data;
 
 namespace CustomizePlus.Profiles.Events;
 
 /// <summary>
 /// Triggered when profile is changed
 /// </summary>
-public sealed class ProfileChanged() : EventWrapper<ProfileChanged.Type, Profile?, object?, ProfileChanged.Priority>(nameof(ProfileChanged))
+public sealed class ProfileChanged(LunaLogger log)
+    : EventBase<ProfileChanged.Arguments, ProfileChanged.Priority>(nameof(ProfileChanged), log)
 {
+    public readonly record struct Arguments(Type Type, Profile? Profile, object? Data);
+
     public enum Type
     {
         Created,
@@ -35,9 +37,10 @@ public sealed class ProfileChanged() : EventWrapper<ProfileChanged.Type, Profile
     {
         ProfileFileSystemSelector = -2,
         TemplateFileSystemSelector = -1,
-        ProfileFileSystem,
-        ArmatureManager,
-        TemplateManager,
-        CustomizePlusLegacyIpc
+        ProfileFileSystem = 0,
+        DesignHeader = 0,
+        ArmatureManager = 1,
+        TemplateManager = 2,
+        CustomizePlusLegacyIpc = 3
     }
 }

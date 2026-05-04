@@ -1,16 +1,12 @@
-﻿using CustomizePlus.Profiles.Data;
+using CustomizePlus.Profiles.Data;
 using CustomizePlus.Profiles.Events;
 using CustomizePlus.Templates.Data;
 using Dalamud.Game.ClientState.Objects.Enums;
+using Dalamud.Interface.ImGuiNotification;
 using Newtonsoft.Json.Linq;
-using OtterGui.Classes;
 using Penumbra.GameData.Actors;
 using Penumbra.GameData.Structs;
 using Penumbra.String;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 
 namespace CustomizePlus.Profiles;
 
@@ -45,6 +41,8 @@ public partial class ProfileManager : IDisposable
                 if (Profiles.Any(f => f.UniqueId == profile.UniqueId))
                     throw new Exception($"ID {profile.UniqueId} was not unique.");
 
+                profile.Index = Profiles.Count;
+
                 Profiles.Add(profile);
             }
             catch (Exception ex)
@@ -73,7 +71,7 @@ public partial class ProfileManager : IDisposable
                 $"Moved {invalidNames.Count - failed} profiles to correct names.{(failed > 0 ? $" Failed to move {failed} profiles to correct names." : string.Empty)}");
 
         _logger.Information("Profiles load complete");
-        _event.Invoke(ProfileChanged.Type.ReloadedAll, null, null);
+        _event.Invoke(new ProfileChanged.Arguments(ProfileChanged.Type.ReloadedAll, null, null));
     }
 
     private Profile LoadIndividualProfile(JObject obj)
@@ -82,8 +80,8 @@ public partial class ProfileManager : IDisposable
         return version switch
         {
             //Ignore everything below v4
-             4 => LoadV4(obj),
-             5 => LoadV5(obj),
+            4 => LoadV4(obj),
+            5 or 6 => LoadV6(obj),
             _ => throw new Exception("The profile to be loaded has no valid Version."),
         };
     }
@@ -105,10 +103,10 @@ public partial class ProfileManager : IDisposable
             var currentPlayer = _actorManager.GetCurrentPlayer();
             profile.Characters.Add(_actorManager.CreateOwned(currentPlayer.PlayerName, currentPlayer.HomeWorld, ObjectKind.Companion, new NpcId(id)));
         }
-        else if (_reverseNameDicts.TryGetID(ObjectKind.MountType, characterName, out id))
+        else if (_reverseNameDicts.TryGetID(ObjectKind.Mount, characterName, out id))
         {
             var currentPlayer = _actorManager.GetCurrentPlayer();
-            profile.Characters.Add(_actorManager.CreateOwned(currentPlayer.PlayerName, currentPlayer.HomeWorld, ObjectKind.MountType, new NpcId(id)));
+            profile.Characters.Add(_actorManager.CreateOwned(currentPlayer.PlayerName, currentPlayer.HomeWorld, ObjectKind.Mount, new NpcId(id)));
         }
         else if (_reverseNameDicts.TryGetID(ObjectKind.EventNpc, characterName, out id))
             profile.Characters.Add(_actorManager.CreateNpc(ObjectKind.EventNpc, new NpcId(id)));
@@ -131,7 +129,7 @@ public partial class ProfileManager : IDisposable
         return profile;
     }
 
-    private Profile LoadV5(JObject obj)
+    private Profile LoadV6(JObject obj)
     {
         var profile = LoadProfileV4V5(obj);
 
@@ -140,7 +138,7 @@ public partial class ProfileManager : IDisposable
         if (obj["Characters"] is not JArray characterArray)
             return profile;
 
-        foreach(var characterObj in characterArray)
+        foreach (var characterObj in characterArray)
         {
             if (characterObj is not JObject characterObjCast)
             {
@@ -150,7 +148,7 @@ public partial class ProfileManager : IDisposable
 
             var character = _actorManager.FromJson(characterObjCast);
 
-            if(!character.IsValid)
+            if (!character.IsValid)
             {
                 //todo: warning
                 continue;
@@ -171,7 +169,7 @@ public partial class ProfileManager : IDisposable
         {
             CreationDate = creationDate,
             UniqueId = obj["UniqueId"]?.ToObject<Guid>() ?? throw new ArgumentNullException("UniqueId"),
-            Name = new LowerString(obj["Name"]?.ToObject<string>()?.Trim() ?? throw new ArgumentNullException("Name")),
+            Name = obj["Name"]?.ToObject<string>() ?? throw new ArgumentNullException("Name"),
             Enabled = obj["Enabled"]?.ToObject<bool>() ?? throw new ArgumentNullException("Enabled"),
             ModifiedDate = obj["ModifiedDate"]?.ToObject<DateTimeOffset>() ?? creationDate,
             IsWriteProtected = obj["IsWriteProtected"]?.ToObject<bool>() ?? false,
@@ -180,6 +178,8 @@ public partial class ProfileManager : IDisposable
         if (profile.ModifiedDate < creationDate)
             profile.ModifiedDate = creationDate;
 
+        Profile.ReadFileSystemPath(obj, profile.Path);
+
         if (obj["Templates"] is not JArray templateArray)
             return profile;
 
@@ -187,13 +187,22 @@ public partial class ProfileManager : IDisposable
         {
             if (templateObj is not JObject templateObjCast)
             {
-                //todo: warning
+                CustomizePlus.Messager.NotificationMessage(
+                    $"Profile {profile.Name} contains an invalid template.",
+                    NotificationType.Warning);
+
                 continue;
             }
 
             var templateId = templateObjCast["TemplateId"]?.ToObject<Guid>();
             if (templateId == null)
-                continue; //todo: error
+            {
+                CustomizePlus.Messager.NotificationMessage(
+                    $"Profile {profile.Name} contains an invalid template.",
+                    NotificationType.Warning);
+
+                continue;
+            }
 
             var template = _templateManager.GetTemplate((Guid)templateId);
             if (template == null)

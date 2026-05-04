@@ -2,7 +2,7 @@
 using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
-using OtterGui.Services;
+using Luna;
 using Penumbra.GameData.Enums;
 using Penumbra.GameData.Interop;
 using Penumbra.String;
@@ -10,7 +10,7 @@ using System.Diagnostics;
 
 namespace CustomizePlus.GameData.Services;
 
-public sealed class CutsceneService : IRequiredService, IDisposable
+public sealed class CutsceneService : Luna.IRequiredService, IDisposable
 {
     public const int CutsceneStartIdx = (int)ScreenActor.CutsceneStart;
     public const int CutsceneEndIdx = (int)ScreenActor.CutsceneEnd;
@@ -19,6 +19,7 @@ public sealed class CutsceneService : IRequiredService, IDisposable
     private readonly ObjectManager _objects;
     private readonly CopyCharacter _copyCharacter;
     private readonly CharacterDestructor _characterDestructor;
+    private readonly ConstructCutsceneCharacter _constructCutsceneCharacter;
     private readonly short[] _copiedCharacters = Enumerable.Repeat((short)-1, CutsceneSlots).ToArray();
 
     public IEnumerable<KeyValuePair<int, IGameObject>> Actors
@@ -26,14 +27,16 @@ public sealed class CutsceneService : IRequiredService, IDisposable
             .Where(i => _objects[i].Valid)
             .Select(i => KeyValuePair.Create(i, this[i] ?? _objects.GetDalamudObject(i)!));
 
-    public unsafe CutsceneService(ObjectManager objects, CopyCharacter copyCharacter, CharacterDestructor characterDestructor,
-        IClientState clientState)
+    public CutsceneService(ObjectManager objects, CopyCharacter copyCharacter, CharacterDestructor characterDestructor,
+        ConstructCutsceneCharacter constructCutsceneCharacter, IClientState clientState)
     {
         _objects = objects;
         _copyCharacter = copyCharacter;
         _characterDestructor = characterDestructor;
+        _constructCutsceneCharacter = constructCutsceneCharacter;
         _copyCharacter.Subscribe(OnCharacterCopy, CopyCharacter.Priority.CutsceneService);
         _characterDestructor.Subscribe(OnCharacterDestructor, CharacterDestructor.Priority.CutsceneService);
+        _constructCutsceneCharacter.Subscribe(OnSetupPlayerNpc, ConstructCutsceneCharacter.Priority.CutsceneService);
         if (clientState.IsGPosing)
             RecoverGPoseActors();
     }
@@ -73,6 +76,7 @@ public sealed class CutsceneService : IRequiredService, IDisposable
             return false;
 
         _copiedCharacters[copyIdx - CutsceneStartIdx] = (short)parentIdx;
+        _objects.InvokeRequiredUpdates();
         return true;
     }
 
@@ -84,14 +88,16 @@ public sealed class CutsceneService : IRequiredService, IDisposable
         return -1;
     }
 
-    public unsafe void Dispose()
+    public void Dispose()
     {
         _copyCharacter.Unsubscribe(OnCharacterCopy);
         _characterDestructor.Unsubscribe(OnCharacterDestructor);
+        _constructCutsceneCharacter.Unsubscribe(OnSetupPlayerNpc);
     }
 
-    private unsafe void OnCharacterDestructor(Character* character)
+    private unsafe void OnCharacterDestructor(in CharacterDestructor.Arguments arguments)
     {
+        var character = arguments.Character.AsCharacter;
         if (character->GameObject.ObjectIndex < CutsceneStartIdx)
         {
             // Remove all associations for now non-existing actor.
@@ -116,13 +122,22 @@ public sealed class CutsceneService : IRequiredService, IDisposable
         }
     }
 
-    private unsafe void OnCharacterCopy(Character* target, Character* source)
+    private void OnCharacterCopy(in CopyCharacter.Arguments arguments)
     {
-        if (target == null || target->GameObject.ObjectIndex is < CutsceneStartIdx or >= CutsceneEndIdx)
+        if (!arguments.TargetCharacter.Valid || arguments.TargetCharacter.Index.Index is < CutsceneStartIdx or >= CutsceneEndIdx)
             return;
 
-        var idx = target->GameObject.ObjectIndex - CutsceneStartIdx;
-        _copiedCharacters[idx] = (short)(source != null ? source->GameObject.ObjectIndex : -1);
+        var idx = arguments.TargetCharacter.Index.Index - CutsceneStartIdx;
+        _copiedCharacters[idx] = (short)(arguments.SourceCharacter.Valid ? arguments.SourceCharacter.Index : -1);
+    }
+
+    private void OnSetupPlayerNpc(in ConstructCutsceneCharacter.Arguments arguments)
+    {
+        if (!arguments.Character.Valid || arguments.Character.Index.Index is < CutsceneStartIdx or >= CutsceneEndIdx)
+            return;
+
+        var idx = arguments.Character.Index.Index - CutsceneStartIdx;
+        _copiedCharacters[idx] = 0;
     }
 
     /// <summary> Try to recover GPose actors on reloads into a running game. </summary>

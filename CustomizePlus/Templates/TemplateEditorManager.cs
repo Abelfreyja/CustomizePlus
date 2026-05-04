@@ -1,4 +1,4 @@
-﻿using CustomizePlus.Configuration.Data;
+using CustomizePlus.Configuration.Data;
 using CustomizePlus.Core.Data;
 using CustomizePlus.Game.Services;
 using CustomizePlus.GameData.Extensions;
@@ -7,12 +7,7 @@ using CustomizePlus.Profiles.Enums;
 using CustomizePlus.Templates.Data;
 using CustomizePlus.Templates.Events;
 using Dalamud.Plugin.Services;
-using OtterGui.Log;
 using Penumbra.GameData.Actors;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Numerics;
 
 namespace CustomizePlus.Templates;
 
@@ -141,7 +136,7 @@ public class TemplateEditorManager : IDisposable
         HasChanges = false;
         IsEditorActive = true;
 
-        _event.Invoke(TemplateChanged.Type.EditorEnabled, template, Character);
+        _event.Invoke(new TemplateChanged.Arguments(TemplateChanged.Type.EditorEnabled, template, Character));
 
         return true;
     }
@@ -167,7 +162,7 @@ public class TemplateEditorManager : IDisposable
         IsEditorActive = false;
         HasChanges = false;
 
-        _event.Invoke(TemplateChanged.Type.EditorDisabled, template, (Character, hasChanges));
+        _event.Invoke(new TemplateChanged.Arguments(TemplateChanged.Type.EditorDisabled, template, (Character, hasChanges)));
 
         return true;
     }
@@ -216,7 +211,7 @@ public class TemplateEditorManager : IDisposable
         _configuration.EditorConfiguration.PreviewCharacter = character;
         _configuration.Save();
 
-        _event.Invoke(TemplateChanged.Type.EditorCharacterChanged, CurrentlyEditedTemplate, (character, EditorProfile));
+        _event.Invoke(new TemplateChanged.Arguments(TemplateChanged.Type.EditorCharacterChanged, CurrentlyEditedTemplate, (character, EditorProfile)));
 
         return true;
     }

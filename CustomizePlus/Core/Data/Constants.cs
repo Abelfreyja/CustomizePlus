@@ -1,7 +1,6 @@
 ﻿using FFXIVClientStructs.Havok.Common.Base.Math.QsTransform;
 using FFXIVClientStructs.Havok.Common.Base.Math.Quaternion;
 using FFXIVClientStructs.Havok.Common.Base.Math.Vector;
-using System.Numerics;
 
 namespace CustomizePlus.Core.Data;
 
@@ -10,7 +9,7 @@ internal static class Constants
     /// <summary>
     /// Version of the configuration file, when increased a converter should be implemented if necessary.
     /// </summary>
-    public const int ConfigurationVersion = 5;
+    public const int ConfigurationVersion = 6;
 
     /// <summary>
     /// The name of the root bone.
