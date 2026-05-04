@@ -8,12 +8,9 @@ namespace CustomizePlus.Configuration.Data;
 
 public sealed partial class LunaUiConfiguration : ConfigurationFile<FilenameService>
 {
-    private readonly ActorManager _actors;
-
     public LunaUiConfiguration(SaveService saveService, MessageService messageService, ActorManager actors)
         : base(saveService, messageService, TimeSpan.FromMinutes(5))
     {
-        _actors = actors;
         Load();
     }
 
@@ -21,7 +18,7 @@ public sealed partial class LunaUiConfiguration : ConfigurationFile<FilenameServ
     private TwoPanelWidth _templatesTabScale = new(250, ScalingMode.Absolute);
 
     [ConfigProperty]
-    private TwoPanelWidth _profilesTabScale = new(0.3f, ScalingMode.Percentage);
+    private TwoPanelWidth _profilesTabScale = new(250, ScalingMode.Absolute);
 
     public override int CurrentVersion
         => 1;
