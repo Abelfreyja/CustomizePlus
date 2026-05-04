@@ -1,5 +1,6 @@
 ﻿using CustomizePlus.Anamnesis;
 using CustomizePlus.Templates;
+using Dalamud.Interface;
 using Dalamud.Interface.ImGuiFileDialog;
 using Dalamud.Interface.ImGuiNotification;
 
@@ -14,7 +15,7 @@ public sealed class AnamnesisImportButton(
     FileDialogManager fileDialogManager) : BaseIconButton<AwesomeIcon>
 {
     public override AwesomeIcon Icon
-        => LunaStyle.DuplicateIcon;
+        => FontAwesomeIcon.PersonFalling;
 
     public override bool HasTooltip
         => true;

@@ -59,8 +59,7 @@ public sealed class ImportTemplateButton(
             {
                 2 => GetTemplateFromV2Profile(json),
                 3 => GetTemplateFromV3Profile(json),
-                4 => JsonConvert.DeserializeObject<Template>(json),
-                5 => JsonConvert.DeserializeObject<Template>(json),
+                4 or 5 or 6 => JsonConvert.DeserializeObject<Template>(json),
                 _ => null
             };
 
