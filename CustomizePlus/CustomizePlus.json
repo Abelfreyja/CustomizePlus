@@ -6,6 +6,7 @@
 	"InternalName": "CustomizePlus",
 	"ApplicableVersion": "any",
 	"AssemblyVersion": "2.0.0.0",
+	"RepoUrl": "https://github.com/Aether-Tools/CustomizePlus",
 	"Tags": [
 		"Anamnesis",
 		"Customization",
