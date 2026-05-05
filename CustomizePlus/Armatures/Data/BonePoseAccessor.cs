@@ -73,6 +73,9 @@ internal static unsafe class BonePoseAccessor
         if (bone.BoneIndex < 0 || bone.BoneIndex >= targetPose->Skeleton->Bones.Length)
             return null;
 
+        if (targetPose->Skeleton->Bones[bone.BoneIndex].Name.String != bone.BoneName)
+            return null;
+
         return targetPose;
     }
 }
