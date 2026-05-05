@@ -55,6 +55,10 @@ public class MainWindow : LunaWindow, IDisposable
         };
 
         IsOpen = configuration.UISettings.OpenWindowAtStart;
+
+        //override some Luna settings
+        AllowClickthrough = true;
+        AllowPinning = true;
     }
 
     public void Dispose()
