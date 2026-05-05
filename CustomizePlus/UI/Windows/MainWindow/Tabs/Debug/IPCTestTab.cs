@@ -92,7 +92,6 @@ public class IPCTestTab : ITab<MainTabType> //: IDisposable
     private int _cutsceneActorIdx;
     private int _cutsceneActorParentIdx;
 
-
     public IPCTestTab(
         IDalamudPluginInterface pluginInterface,
         IObjectTable objectTable,
