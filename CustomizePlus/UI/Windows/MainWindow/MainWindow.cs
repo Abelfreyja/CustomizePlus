@@ -55,6 +55,10 @@ public class MainWindow : LunaWindow, IDisposable
         };
 
         IsOpen = configuration.UISettings.OpenWindowAtStart;
+
+        //override some Luna settings
+        AllowClickthrough = true;
+        AllowPinning = true;
     }
 
     public void Dispose()
@@ -64,6 +68,8 @@ public class MainWindow : LunaWindow, IDisposable
 
     public override void Draw()
     {
+        var yPos = Im.Cursor.Position.Y - 5; //remember starting position to draw plugin state block in a proper place
+
         using (var disabled = Im.Disabled(_hookingService.RenderHookFailed || _hookingService.MovementHookFailed))
         {
             LockWindowClosureIfNeeded();
@@ -83,8 +89,6 @@ public class MainWindow : LunaWindow, IDisposable
             }
         }
 
-        Im.Line.Same();
-        var yPos = Im.Cursor.Position.Y - 5;
         _pluginStateBlock.Draw(yPos, CalculatePluginStateLeftEdge(_mainTabBar.Tabs));
     }
 
