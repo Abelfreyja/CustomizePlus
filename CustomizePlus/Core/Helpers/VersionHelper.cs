@@ -2,10 +2,16 @@
 using System.Reflection;
 #endif
 
+using Dalamud.Plugin;
+
 namespace CustomizePlus.Core.Helpers;
 
 internal static class VersionHelper
 {
+    //for the love of god don't be an asshole and never change this.
+    public const string AetherToolsRepo = "https://raw.githubusercontent.com/aether-tools/dalamudplugins/main/repo.json";
+    public const string SeaOfStarsRepo = "https://raw.githubusercontent.com/ottermandias/seaofstars/main/repo.json";
+
     public static string Version { get; private set; } = "Initializing";
 
     public static bool IsTesting { get; private set; } = false;
@@ -35,5 +41,25 @@ internal static class VersionHelper
 
         if (IsValidate)
             Version += " [VALIDATE BUILD]";
+    }
+
+    public static bool IsTrustedBuild(IDalamudPluginInterface pi) =>
+      pi.SourceRepository?.Trim().ToLowerInvariant() switch
+      {
+          null => false,
+          AetherToolsRepo => true,
+          SeaOfStarsRepo => true,
+          _ => false,
+      };
+
+    public static string GetInstallationSource(IDalamudPluginInterface pi)
+    {
+        var checkedDirectory = pi.AssemblyLocation.Directory?.Parent?.Parent?.Name;
+        var ret = checkedDirectory?.Equals("installedPlugins", StringComparison.OrdinalIgnoreCase) ?? false;
+
+        if (ret)
+            return checkedDirectory!;
+
+        return pi.SourceRepository;
     }
 }

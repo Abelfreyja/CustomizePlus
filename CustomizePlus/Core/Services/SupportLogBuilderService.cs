@@ -42,6 +42,8 @@ public class SupportLogBuilderService
         sb.AppendLine("**Settings**");
         sb.Append($"> **`Plugin Version:                 `** {VersionHelper.Version}\n");
         sb.Append($"> **`Commit Hash:                    `** {ThisAssembly.Git.Commit}+{ThisAssembly.Git.Sha}\n");
+        sb.Append($"> **`Trusted build:                  `** {VersionHelper.IsTrustedBuild(_dalamudPluginInterface)}\n");
+        sb.Append($"> **`Installation source:            `** {VersionHelper.GetInstallationSource(_dalamudPluginInterface)}\n");
         sb.Append($"> **`Plugin enabled:                 `** {_configuration.PluginEnabled}\n");
         sb.AppendLine("**Settings -> Editor Settings**");
         sb.Append($"> **`Preview character (editor):     `** {_configuration.EditorConfiguration.PreviewCharacter.Incognito(null)}\n");
