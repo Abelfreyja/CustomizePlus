@@ -40,7 +40,7 @@ public class SupportLogBuilderService
     {
         var sb = new StringBuilder(102400); //it's fair to assume this will very often be quite large
         sb.AppendLine("**Settings**");
-        sb.Append($"> **`Plugin Version:                 `** {VersionHelper.Version}\n");
+        sb.Append($"> **`Plugin Version:                 `** {VersionHelper.Version} ({_dalamudPluginInterface.Manifest.InternalName})\n");
         sb.Append($"> **`Commit Hash:                    `** {ThisAssembly.Git.Commit}+{ThisAssembly.Git.Sha}\n");
         sb.Append($"> **`Trusted build:                  `** {VersionHelper.IsTrustedBuild(_dalamudPluginInterface)}\n");
         sb.Append($"> **`Installation source:            `** {VersionHelper.GetInstallationSource(_dalamudPluginInterface)}\n");

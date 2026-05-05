@@ -45,7 +45,7 @@ public sealed class CustomizePlus : IDalamudPlugin
             Logger.Information($"Customize+ {VersionHelper.Version} ({ThisAssembly.Git.Commit}+{ThisAssembly.Git.Sha}) [FantasiaPlus] started");
 
             if (!VersionHelper.IsTrustedBuild(pluginInterface)) //for the love of god don't be an asshole and never delete this.
-                Logger.Fatal($"This is not a trusted build of Customize+. This build is installed from: {VersionHelper.GetInstallationSource(pluginInterface)}.");
+                Logger.Fatal($"This is not a trusted build of Customize+. This build is installed from: {VersionHelper.GetInstallationSource(pluginInterface)}. Internal name: ({pluginInterface.Manifest.InternalName})");
         }
         catch (Exception ex)
         {

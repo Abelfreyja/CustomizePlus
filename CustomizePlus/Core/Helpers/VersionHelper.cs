@@ -54,12 +54,6 @@ internal static class VersionHelper
 
     public static string GetInstallationSource(IDalamudPluginInterface pi)
     {
-        var checkedDirectory = pi.AssemblyLocation.Directory?.Parent?.Parent?.Name;
-        var ret = checkedDirectory?.Equals("installedPlugins", StringComparison.OrdinalIgnoreCase) ?? false;
-
-        if (ret)
-            return checkedDirectory!;
-
-        return pi.SourceRepository;
+        return $"{pi.SourceRepository} ({pi.AssemblyLocation.Directory?.FullName ?? "Unknown directory"})";
     }
 }
