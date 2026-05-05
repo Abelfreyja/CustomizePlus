@@ -393,7 +393,7 @@ public class ProfilePanel : IPanel
         table.SetupColumn("##Index"u8, TableColumnFlags.WidthFixed, 30 * ImGuiHelpers.GlobalScale);
         table.SetupColumn("##Enabled"u8, TableColumnFlags.WidthFixed, 30 * ImGuiHelpers.GlobalScale);
 
-        table.SetupColumn("Template"u8, TableColumnFlags.WidthFixed, 220 * ImGuiHelpers.GlobalScale);
+        table.SetupColumn("Template"u8, TableColumnFlags.WidthFixed, 420 * ImGuiHelpers.GlobalScale);
 
         table.SetupColumn("##editbtn"u8, TableColumnFlags.WidthFixed, 120 * ImGuiHelpers.GlobalScale);
 
