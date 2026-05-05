@@ -305,13 +305,13 @@ public unsafe sealed class ArmatureManager : IDisposable
             Armatures.TryGetValue(ident, out mountOwnerArmature);
         }
 
-        if (cBase != null)
+        if (cBase != null && cBase->Skeleton != null)
         {
             for (var pSkeleIndex = 0; pSkeleIndex < cBase->Skeleton->PartialSkeletonCount; ++pSkeleIndex)
             {
                 var currentPose = cBase->Skeleton->PartialSkeletons[pSkeleIndex].GetHavokPose(Constants.TruePoseIndex);
 
-                if (currentPose != null)
+                if (currentPose != null && currentPose->Skeleton != null)
                 {
                     for (var boneIndex = 0; boneIndex < currentPose->Skeleton->Bones.Length; ++boneIndex)
                     {
@@ -349,7 +349,7 @@ public unsafe sealed class ArmatureManager : IDisposable
                             }
                             else
                             {
-                                mb.ApplyModelTransform(cBase);
+                                BoneTransformPropagator.Apply(cBase, mb);
                             }
                         }
                     }

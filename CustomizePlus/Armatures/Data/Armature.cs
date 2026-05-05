@@ -1,4 +1,4 @@
-﻿using CustomizePlus.Core.Data;
+using CustomizePlus.Core.Data;
 using CustomizePlus.GameData.Extensions;
 using CustomizePlus.Profiles.Data;
 using CustomizePlus.Templates.Data;
@@ -95,7 +95,9 @@ public unsafe class Armature
     /// </summary>
     public ModelBone? GetBoneAt(int partialIndex, int boneIndex)
     {
-        if (_partialSkeletons.Length > partialIndex
+        if (partialIndex >= 0
+            && boneIndex >= 0
+            && _partialSkeletons.Length > partialIndex
             && _partialSkeletons[partialIndex].Length > boneIndex)
         {
             return this[partialIndex, boneIndex];
@@ -161,44 +163,79 @@ public unsafe class Armature
 
     public bool IsSkeletonUpdated(CharacterBase* cBase)
     {
-        if (cBase == null)
+        if (cBase == null || cBase->Skeleton == null)
             return false;
-        else if (cBase->Skeleton->PartialSkeletonCount != _partialSkeletons.Length)
+
+        var skeleton = cBase->Skeleton;
+        if (skeleton->PartialSkeletonCount != _partialSkeletons.Length)
             return true;
-        else
+
+        for (var partialIndex = 0; partialIndex < skeleton->PartialSkeletonCount; ++partialIndex)
         {
-            for (var i = 0; i < cBase->Skeleton->PartialSkeletonCount; ++i)
+            var partial = skeleton->PartialSkeletons[partialIndex];
+            var pose = partial.GetHavokPose(Constants.TruePoseIndex);
+            if (pose == null || pose->Skeleton == null)
+                continue;
+
+            if (pose->Skeleton->Bones.Length != _partialSkeletons[partialIndex].Length)
+                return true;
+
+            var rootCount = 0;
+            var rootBoneIndex = -1;
+            for (var boneIndex = 0; boneIndex < pose->Skeleton->ParentIndices.Length; boneIndex++)
             {
-                if (i == 2)
-                    continue; //hair is handled separately
-
-                var newPose = cBase->Skeleton->PartialSkeletons[i].GetHavokPose(Constants.TruePoseIndex);
-
-                if (newPose != null
-                    && newPose->Skeleton->Bones.Length != _partialSkeletons[i].Length)
-                    return true;
+                if (pose->Skeleton->ParentIndices[boneIndex] < 0)
+                {
+                    rootCount++;
+                    rootBoneIndex = boneIndex;
+                }
             }
 
-            //handle hair separately because different hairstyles can have the same amount of bones.
-            if (cBase->Skeleton->PartialSkeletonCount > 2)
+            if (partialIndex > 0
+                && rootCount == 1
+                && IsSingleRootPartialConnectionUpdated(partialIndex, rootBoneIndex, partial.ConnectedParentBoneIndex, partial.ConnectedBoneIndex))
             {
-                var newPose = cBase->Skeleton->PartialSkeletons[2].GetHavokPose(Constants.TruePoseIndex);
+                return true;
+            }
 
-                if (newPose != null)
-                {
-                    if (newPose->Skeleton->Bones.Length != _partialSkeletons[2].Length)
-                        return true;
-
-                    for (var i = 0; i < newPose->Skeleton->Bones.Length; i++)
-                    {
-                        if (newPose->Skeleton->Bones[i].Name.String != _partialSkeletons[2][i].BoneName)
-                            return true;
-                    }
-                }
+            for (var boneIndex = 0; boneIndex < pose->Skeleton->Bones.Length; boneIndex++)
+            {
+                if (IsBoneDefinitionUpdated(partialIndex, boneIndex, pose->Skeleton->Bones[boneIndex].Name.String, pose->Skeleton->ParentIndices[boneIndex]))
+                    return true;
             }
         }
 
         return false;
+    }
+
+    private bool IsSingleRootPartialConnectionUpdated(int partialIndex, int rootBoneIndex, short connectedParentBoneIndex, short connectedBoneIndex)
+    {
+        var rootBone = GetBoneAt(partialIndex, rootBoneIndex);
+        if (rootBone == null)
+            return true;
+
+        var expectedParent = connectedBoneIndex == rootBoneIndex
+            ? GetBoneAt(0, connectedParentBoneIndex)
+            : null;
+
+        expectedParent ??= _partialSkeletons[0].FirstOrDefault(bone => bone.BoneName == rootBone.BoneName);
+
+        return !ReferenceEquals(rootBone.ParentBone, expectedParent);
+    }
+
+    private bool IsBoneDefinitionUpdated(int partialIndex, int boneIndex, string? boneName, short parentIndex)
+    {
+        var bone = _partialSkeletons[partialIndex][boneIndex];
+        if (bone.BoneName != boneName)
+            return true;
+
+        var parent = bone.ParentBone;
+        if (parentIndex < 0)
+            return parent != null && parent.PartialSkeletonIndex == partialIndex;
+
+        return parent == null
+               || parent.PartialSkeletonIndex != partialIndex
+               || parent.BoneIndex != parentIndex;
     }
 
     /// <summary>
@@ -206,12 +243,10 @@ public unsafe class Armature
     /// </summary>
     public void RebuildSkeleton(CharacterBase* cBase)
     {
-        if (cBase == null)
+        if (cBase == null || cBase->Skeleton == null)
             return;
 
-        var newPartials = ParseBonesFromObject(this, cBase);
-
-        _partialSkeletons = newPartials.Select(x => x.ToArray()).ToArray();
+        _partialSkeletons = SkeletonLinker.Build(this, cBase);
 
         RebuildBoneTemplateBinding(); //todo: intentionally not calling ArmatureChanged.Type.Updated because this is pending rewrite
 
@@ -243,70 +278,6 @@ public unsafe class Armature
         LastSeen = (DateTime)dateTime;
     }
 
-    private static unsafe List<List<ModelBone>> ParseBonesFromObject(Armature arm, CharacterBase* cBase)
-    {
-        List<List<ModelBone>> newPartials = new();
-
-        try
-        {
-            //build the skeleton
-            for (var pSkeleIndex = 0; pSkeleIndex < cBase->Skeleton->PartialSkeletonCount; ++pSkeleIndex)
-            {
-                var currentPartial = cBase->Skeleton->PartialSkeletons[pSkeleIndex];
-                var currentPose = currentPartial.GetHavokPose(Constants.TruePoseIndex);
-
-                newPartials.Add(new());
-
-                if (currentPose == null)
-                    continue;
-
-                for (var boneIndex = 0; boneIndex < currentPose->Skeleton->Bones.Length; ++boneIndex)
-                {
-                    if (currentPose->Skeleton->Bones[boneIndex].Name.String is string boneName &&
-                        boneName != null)
-                    {
-                        //time to build a new bone
-                        ModelBone newBone = new(arm, boneName, pSkeleIndex, boneIndex);
-                        CustomizePlus.Logger.Verbose($"Created new bone: {boneName} on {pSkeleIndex}->{boneIndex} arm: {arm._localId}");
-
-                        if (currentPose->Skeleton->ParentIndices[boneIndex] is short parentIndex
-                            && parentIndex >= 0)
-                        {
-                            newBone.AddParent(pSkeleIndex, parentIndex);
-                            newPartials[pSkeleIndex][parentIndex].AddChild(pSkeleIndex, boneIndex);
-                        }
-
-                        foreach (var mb in newPartials.SelectMany(x => x))
-                        {
-                            if (AreTwinnedNames(boneName, mb.BoneName))
-                            {
-                                newBone.AddTwin(mb.PartialSkeletonIndex, mb.BoneIndex);
-                                mb.AddTwin(pSkeleIndex, boneIndex);
-                                break;
-                            }
-                        }
-
-                        //linking is performed later
-
-                        newPartials.Last().Add(newBone);
-                    }
-                    else
-                    {
-                        CustomizePlus.Logger.Error($"Failed to process bone @ <{pSkeleIndex}, {boneIndex}> while parsing bones from {cBase->ToString()}");
-                    }
-                }
-            }
-
-            BoneData.LogNewBones(newPartials.SelectMany(x => x.Select(y => y.BoneName)).ToArray());
-        }
-        catch (Exception ex)
-        {
-            CustomizePlus.Logger.Error($"Error parsing armature skeleton from {cBase->ToString()}:\n\t{ex}");
-        }
-
-        return newPartials;
-    }
-
     public void RebuildBoneTemplateBinding()
     {
         BoneTemplateBinding.Clear();
@@ -328,10 +299,4 @@ public unsafe class Armature
         CustomizePlus.Logger.Debug($"Rebuilt template binding for armature {_localId}");
     }
 
-    private static bool AreTwinnedNames(string name1, string name2)
-    {
-        return name1[^1] == 'r' ^ name2[^1] == 'r'
-            && name1[^1] == 'l' ^ name2[^1] == 'l'
-            && name1[0..^1] == name2[0..^1];
-    }
 }

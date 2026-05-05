@@ -1,67 +1,46 @@
-﻿using CustomizePlus.Core.Data;
-using CustomizePlus.Core.Extensions;
+using CustomizePlus.Core.Data;
 using CustomizePlus.Templates.Data;
-using FFXIVClientStructs.FFXIV.Client.Graphics.Scene;
-using FFXIVClientStructs.Havok.Common.Base.Math.QsTransform;
-using static FFXIVClientStructs.Havok.Animation.Rig.hkaPose;
 
 namespace CustomizePlus.Armatures.Data;
 
 /// <summary>
 ///     Represents a single bone of an ingame character's skeleton.
 /// </summary>
-public unsafe class ModelBone
+public class ModelBone
 {
-    public enum PoseType
-    {
-        Local, Model, BindPose, World
-    }
+    public Armature MasterArmature { get; }
 
-    public readonly Armature MasterArmature;
-
-    public readonly int PartialSkeletonIndex;
-    public readonly int BoneIndex;
+    public int PartialSkeletonIndex { get; }
+    public int BoneIndex { get; }
 
     /// <summary>
     /// Gets the model bone corresponding to this model bone's parent, if it exists.
     /// (It should in all cases but the root of the skeleton)
     /// </summary>
-    public ModelBone? ParentBone => _parentPartialIndex >= 0 && _parentBoneIndex >= 0
-        ? MasterArmature[_parentPartialIndex, _parentBoneIndex]
-        : null;
-    private int _parentPartialIndex = -1;
-    private int _parentBoneIndex = -1;
+    public ModelBone? ParentBone { get; private set; }
+
+    private readonly List<ModelBone> childBones = new();
 
     /// <summary>
     /// Gets each model bone for which this model bone corresponds to a direct parent thereof.
     /// A model bone may have zero children.
     /// </summary>
-    public IEnumerable<ModelBone> ChildBones => _childPartialIndices.Zip(_childBoneIndices, (x, y) => MasterArmature[x, y]);
-    public IEnumerable<ModelBone> GetDescendants()
-    {
-        var list = ChildBones.ToList();
-        for (var i = 0; i < list.Count; i++)
-        {
-            list.AddRange(list[i].ChildBones.ToList());
-        }
-        return list;
-    }
-    private List<int> _childPartialIndices = new();
-    private List<int> _childBoneIndices = new();
+    public IReadOnlyList<ModelBone> ChildBones => childBones;
+
+    private ModelBone[] descendantBones = Array.Empty<ModelBone>();
+    private bool isGraphCached;
+
+    internal ReadOnlySpan<ModelBone> DescendantBones => descendantBones;
 
     /// <summary>
     /// Gets the model bone that forms a mirror image of this model bone, if one exists.
     /// </summary>
-    public ModelBone? TwinBone => _twinPartialIndex >= 0 && _twinBoneIndex >= 0
-        ? MasterArmature[_twinPartialIndex, _twinBoneIndex]
-        : null;
-    private int _twinPartialIndex = -1;
-    private int _twinBoneIndex = -1;
+    public ModelBone? TwinBone { get; private set; }
 
     /// <summary>
     /// The name of the bone within the in-game skeleton. Referred to in some places as its "code name".
     /// </summary>
-    public string BoneName;
+    public string BoneName { get; }
 
     /// <summary>
     /// The transform that this model bone will impart upon its in-game sibling when the master armature
@@ -74,7 +53,7 @@ public unsafe class ModelBone
     /// </summary>
     public bool IsActive => CustomizedTransform != null;
 
-    public ModelBone(Armature arm, string codeName, int partialIdx, int boneIdx)
+    internal ModelBone(Armature arm, string codeName, int partialIdx, int boneIdx)
     {
         MasterArmature = arm;
         PartialSkeletonIndex = partialIdx;
@@ -114,33 +93,60 @@ public unsafe class ModelBone
     /// <summary>
     /// Indicate a bone to act as this model bone's "parent".
     /// </summary>
-    public void AddParent(int parentPartialIdx, int parentBoneIdx)
+    internal void AddParent(ModelBone parent)
     {
-        if (_parentPartialIndex != -1 || _parentBoneIndex != -1)
+        ThrowIfGraphCached();
+
+        if (ParentBone != null)
         {
             throw new Exception($"Tried to add redundant parent to model bone -- {this}");
         }
 
-        _parentPartialIndex = parentPartialIdx;
-        _parentBoneIndex = parentBoneIdx;
+        ParentBone = parent;
     }
 
     /// <summary>
     /// Indicate that a bone is one of this model bone's "children".
     /// </summary>
-    public void AddChild(int childPartialIdx, int childBoneIdx)
+    internal void AddChild(ModelBone child)
     {
-        _childPartialIndices.Add(childPartialIdx);
-        _childBoneIndices.Add(childBoneIdx);
+        ThrowIfGraphCached();
+
+        if (!childBones.Contains(child))
+            childBones.Add(child);
     }
 
     /// <summary>
     /// Indicate a bone that acts as this model bone's mirror image, or "twin".
     /// </summary>
-    public void AddTwin(int twinPartialIdx, int twinBoneIdx)
+    internal void AddTwin(ModelBone twin)
     {
-        _twinPartialIndex = twinPartialIdx;
-        _twinBoneIndex = twinBoneIdx;
+        ThrowIfGraphCached();
+
+        TwinBone = twin;
+    }
+
+    internal void CacheDescendants()
+    {
+        var descendants = new List<ModelBone>(childBones);
+        var seen = new HashSet<ModelBone>(childBones);
+        for (var i = 0; i < descendants.Count; i++)
+        {
+            foreach (var child in descendants[i].childBones)
+            {
+                if (!ReferenceEquals(child, this) && seen.Add(child))
+                    descendants.Add(child);
+            }
+        }
+
+        descendantBones = descendants.ToArray();
+        isGraphCached = true;
+    }
+
+    private void ThrowIfGraphCached()
+    {
+        if (isGraphCached)
+            throw new InvalidOperationException($"Tried to modify cached model bone graph -- {this}");
     }
 
     public override string ToString()
@@ -152,275 +158,42 @@ public unsafe class ModelBone
     /// <summary>
     /// Get the lineage of this model bone, going back to the skeleton's root bone.
     /// </summary>
-    public IEnumerable<ModelBone> GetAncestors(bool includeSelf = true) => includeSelf
-        ? GetAncestors(new List<ModelBone>() { this })
-        : GetAncestors(new List<ModelBone>());
-
-    private IEnumerable<ModelBone> GetAncestors(List<ModelBone> tail)
+    public IEnumerable<ModelBone> GetAncestors(bool includeSelf = true)
     {
-        tail.Add(this);
-        if (ParentBone is ModelBone mb && mb != null)
+        var bone = includeSelf ? this : ParentBone;
+        while (bone != null)
         {
-            return mb.GetAncestors(tail);
-        }
-        else
-        {
-            return tail;
+            yield return bone;
+            bone = bone.ParentBone;
         }
     }
 
     /// <summary>
     /// Gets all model bones with a lineage that contains this one.
     /// </summary>
-    public IEnumerable<ModelBone> GetDescendants(bool includeSelf = false) => includeSelf
-        ? GetDescendants(this)
-        : GetDescendants(null);
-
-    private IEnumerable<ModelBone> GetDescendants(ModelBone? first)
+    public IEnumerable<ModelBone> GetDescendants(bool includeSelf = false)
     {
-        var output = first != null
-            ? new List<ModelBone>() { first }
-            : new List<ModelBone>();
+        if (includeSelf)
+            yield return this;
 
-        output.AddRange(ChildBones);
-
-        using (var iter = output.GetEnumerator())
+        foreach (var descendant in descendantBones)
         {
-            while (iter.MoveNext())
-            {
-                output.AddRange(iter.Current.ChildBones);
-                yield return iter.Current;
-            }
+            yield return descendant;
         }
     }
-
-    /// <summary>
-    /// Given a character base to which this model bone's master armature (presumably) applies,
-    /// return the game's transform value for this model's in-game sibling within the given reference frame.
-    /// </summary>
-    public hkQsTransformf GetGameTransform(CharacterBase* cBase, PoseType refFrame)
-    {
-
-        var skelly = cBase->Skeleton;
-        var pSkelly = skelly->PartialSkeletons[PartialSkeletonIndex];
-        var targetPose = pSkelly.GetHavokPose(Constants.TruePoseIndex);
-        //hkaPose* targetPose = cBase->Skeleton->PartialSkeletons[PartialSkeletonIndex].GetHavokPose(Constants.TruePoseIndex);
-
-        if (targetPose == null) return Constants.NullTransform;
-
-        if (BoneIndex >= targetPose->Skeleton->Bones.Length) return Constants.NullTransform;
-
-        return refFrame switch
-        {
-            PoseType.Local => targetPose->LocalPose[BoneIndex],
-            PoseType.Model => targetPose->ModelPose[BoneIndex],
-            _ => Constants.NullTransform
-            //TODO properly implement the other options
-        };
-    }
-
-    public hkQsTransformf* GetGameTransformAccess(CharacterBase* cBase, PoseType refFrame)
-    {
-
-        var skelly = cBase->Skeleton;
-        var pSkelly = skelly->PartialSkeletons[PartialSkeletonIndex];
-        var targetPose = pSkelly.GetHavokPose(Constants.TruePoseIndex);
-        //hkaPose* targetPose = cBase->Skeleton->PartialSkeletons[PartialSkeletonIndex].GetHavokPose(Constants.TruePoseIndex);
-
-        if (targetPose == null)
-            return null;
-
-        // It's really gonna crash without it, skeleton changes aren't getting picked up fast enough
-        if (BoneIndex >= targetPose->Skeleton->Bones.Length) return null;
-
-        return refFrame switch
-        {
-            PoseType.Local => targetPose->AccessBoneLocalSpace(BoneIndex),
-            PoseType.Model => targetPose->AccessBoneModelSpace(BoneIndex, PropagateOrNot.DontPropagate),
-            _ => null
-            //TODO properly implement the other options
-        }; ;
-    }
-
-    private void SetGameTransform(CharacterBase* cBase, hkQsTransformf transform, PoseType refFrame)
-    {
-        SetGameTransform(cBase, transform, PartialSkeletonIndex, BoneIndex, refFrame);
-    }
-
-    private static void SetGameTransform(CharacterBase* cBase, hkQsTransformf transform, int partialIndex, int boneIndex, PoseType refFrame)
-    {
-        var skelly = cBase->Skeleton;
-        var pSkelly = skelly->PartialSkeletons[partialIndex];
-        var targetPose = pSkelly.GetHavokPose(Constants.TruePoseIndex);
-        //hkaPose* targetPose = cBase->Skeleton->PartialSkeletons[PartialSkeletonIndex].GetHavokPose(Constants.TruePoseIndex);
-
-        if (targetPose == null || targetPose->ModelInSync == 0) return;
-
-        switch (refFrame)
-        {
-            case PoseType.Local:
-                targetPose->LocalPose.Data[boneIndex] = transform;
-                return;
-
-            case PoseType.Model:
-                targetPose->ModelPose.Data[boneIndex] = transform;
-                return;
-
-            default:
-                return;
-
-                //TODO properly implement the other options
-        }
-    }
-
-    /// <summary>
-    /// Apply this model bone's associated transformation to its in-game sibling within
-    /// the skeleton of the given character base.
-    /// </summary>
-    public void ApplyModelTransform(CharacterBase* cBase)
-    {
-        if (!IsActive)
-            return;
-
-        if (cBase == null || CustomizedTransform == null || !CustomizedTransform.IsEdited())
-            return;
-
-        var doPropagate = CustomizedTransform.PropagateTranslation ||
-                          CustomizedTransform.PropagateRotation ||
-                          CustomizedTransform.PropagateScale;
-
-        if (!doPropagate)
-        {
-            var gameTransform = GetGameTransform(cBase, PoseType.Model);
-            if (!gameTransform.Equals(Constants.NullTransform))
-            {
-                var modify_Transform = CustomizedTransform.ModifyExistingTransform(gameTransform);
-                if (!modify_Transform.Equals(Constants.NullTransform))
-                {
-                    SetGameTransform(cBase, modify_Transform, PoseType.Model);
-                }
-            }
-
-            return;
-        }
-
-        var gameTransformAccess = GetGameTransformAccess(cBase, PoseType.Model);
-        if (gameTransformAccess == null)
-            return;
-
-        var initialPos = gameTransformAccess->Translation.ToVector3();
-        var initialRot = gameTransformAccess->Rotation.ToQuaternion();
-        var initialScale = gameTransformAccess->Scale.ToVector3();
-
-        var modTransform = CustomizedTransform.ModifyExistingTransform(*gameTransformAccess);
-        SetGameTransform(cBase, modTransform, PoseType.Model);
-
-        var pose = cBase->Skeleton->PartialSkeletons[PartialSkeletonIndex].GetHavokPose(Constants.TruePoseIndex);
-        if (pose == null || pose->ModelInSync == 0)
-            return;
-
-        var access2 = GetGameTransformAccess(cBase, PoseType.Model);
-        if (access2 == null)
-            return;
-
-        var childScaleToUse = access2->Scale.ToVector3();
-
-        if (CustomizedTransform.ChildScalingIndependent)
-        {
-            childScaleToUse = new Vector3(
-                initialScale.X * CustomizedTransform.ChildScaling.X,
-                initialScale.Y * CustomizedTransform.ChildScaling.Y,
-                initialScale.Z * CustomizedTransform.ChildScaling.Z
-            );
-        }
-
-        var shouldPropagateScale = CustomizedTransform.PropagateScale &&
-            (!CustomizedTransform.Scaling.Equals(Vector3.One) ||
-             (CustomizedTransform.ChildScalingIndependent && !CustomizedTransform.ChildScaling.Equals(Vector3.One)));
-
-        PropagateChildren(cBase, access2, initialPos, initialRot, initialScale,
-            CustomizedTransform.PropagateTranslation && !CustomizedTransform.Translation.Equals(Vector3.Zero),
-            CustomizedTransform.PropagateRotation && !CustomizedTransform.Rotation.Equals(Vector3.Zero),
-            shouldPropagateScale,
-            childScaleToUse);
-    }
-
-
-    public unsafe void PropagateChildren(CharacterBase* cBase, hkQsTransformf* transform, Vector3 initialPos, Quaternion initialRot, Vector3 initialScale, bool propagateTranslation, bool propagateRotation, bool propagateScale, Vector3 childScale, bool includePartials = true)
-    {
-        // Bone parenting
-        // Adapted from Anamnesis Studio code shared by Yuki - thank you!
-
-        // Original Parent Bone position after it had its offsets applied
-        var sourcePos = transform->Translation.ToVector3();
-
-        var deltaRot = transform->Rotation.ToQuaternion() / initialRot;
-        var deltaPos = sourcePos - initialPos;
-        var deltaScale = childScale / initialScale;
-
-        foreach (var child in GetDescendants())
-        {
-            // Plugin.Logger.Debug($"Propagating to {child.BoneName}...");
-            var access = child.GetGameTransformAccess(cBase, PoseType.Model);
-            if (access != null)
-            {
-
-                var offset = access->Translation.ToVector3() - sourcePos;
-
-                var matrix = InteropAlloc.GetMatrix(access);
-                if (propagateScale)
-                {
-                    var scaleMatrix = Matrix4x4.CreateScale(deltaScale, Vector3.Zero);
-                    matrix *= scaleMatrix;
-                    offset = Vector3.Transform(offset, scaleMatrix);
-                }
-                if (propagateRotation)
-                {
-                    matrix *= Matrix4x4.CreateFromQuaternion(deltaRot);
-                    offset = Vector3.Transform(offset, deltaRot);
-                }
-                matrix.Translation = deltaPos + sourcePos + offset;
-                InteropAlloc.SetMatrix(access, matrix);
-            }
-        }
-    }
-
-    public void ApplyModelScale(CharacterBase* cBase) => ApplyTransFunc(cBase, CustomizedTransform.ModifyExistingScale);
-    public void ApplyModelRotation(CharacterBase* cBase) => ApplyTransFunc(cBase, CustomizedTransform.ModifyExistingRotation);
-    public void ApplyModelFullTranslation(CharacterBase* cBase) => ApplyTransFunc(cBase, CustomizedTransform.ModifyExistingTranslationWithRotation);
-    public void ApplyStraightModelTranslation(CharacterBase* cBase) => ApplyTransFunc(cBase, CustomizedTransform.ModifyExistingTranslation);
-
-    private void ApplyTransFunc(CharacterBase* cBase, Func<hkQsTransformf, hkQsTransformf> modTrans)
-    {
-        if (!IsActive)
-            return;
-
-        if (cBase != null
-            && CustomizedTransform.IsEdited()
-            && GetGameTransform(cBase, PoseType.Model) is hkQsTransformf gameTransform
-            && !gameTransform.Equals(Constants.NullTransform))
-        {
-            var modTransform = modTrans(gameTransform);
-
-            if (!modTransform.Equals(gameTransform) && !modTransform.Equals(Constants.NullTransform))
-            {
-                SetGameTransform(cBase, modTransform, PoseType.Model);
-            }
-        }
-    }
-
 
     /// <summary>
     /// Checks for a non-zero and non-identity (root) scale.
     /// </summary>
-    /// <param name="mb">The bone to check</param>
     /// <returns>If the scale should be applied.</returns>
     public bool IsModifiedScale()
     {
-        if (!IsActive)
+        var customizedTransform = CustomizedTransform;
+        if (customizedTransform == null)
             return false;
-        return CustomizedTransform.Scaling.X != 0 && CustomizedTransform.Scaling.X != 1 ||
-               CustomizedTransform.Scaling.Y != 0 && CustomizedTransform.Scaling.Y != 1 ||
-               CustomizedTransform.Scaling.Z != 0 && CustomizedTransform.Scaling.Z != 1;
+
+        return (customizedTransform.Scaling.X != 0 && customizedTransform.Scaling.X != 1)
+               || (customizedTransform.Scaling.Y != 0 && customizedTransform.Scaling.Y != 1)
+               || (customizedTransform.Scaling.Z != 0 && customizedTransform.Scaling.Z != 1);
     }
 }
