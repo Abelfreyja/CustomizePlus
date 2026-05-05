@@ -52,25 +52,28 @@ public class StateMonitoringTab : ITab<MainTabType>
 
     public void DrawContent()
     {
-        var showProfiles = Im.Tree.Header($"Profiles ({_profileManager.Profiles.Count})###profiles_header");
+        using (Im.Group())
+        {
+            var showProfiles = Im.Tree.Header($"Profiles ({_profileManager.Profiles.Count})###profiles_header");
 
-        if (showProfiles)
-            DrawProfiles();
+            if (showProfiles)
+                DrawProfiles();
 
-        var showTemplates = Im.Tree.Header($"Templates ({_templateManager.Templates.Count})###templates_header");
+            var showTemplates = Im.Tree.Header($"Templates ({_templateManager.Templates.Count})###templates_header");
 
-        if (showTemplates)
-            DrawTemplates();
+            if (showTemplates)
+                DrawTemplates();
 
-        var showArmatures = Im.Tree.Header($"Armatures ({_armatureManager.Armatures.Count})###armatures_header");
+            var showArmatures = Im.Tree.Header($"Armatures ({_armatureManager.Armatures.Count})###armatures_header");
 
-        if (showArmatures)
-            DrawArmatures();
+            if (showArmatures)
+                DrawArmatures();
 
-        var showObjectManager = Im.Tree.Header($"Object manager ({_objectManager.Count})###objectmanager_header");
+            var showObjectManager = Im.Tree.Header($"Object manager ({_objectManager.Count})###objectmanager_header");
 
-        if (showObjectManager)
-            DrawObjectManager();
+            if (showObjectManager)
+                DrawObjectManager();
+        }
     }
 
     private void DrawProfiles()
