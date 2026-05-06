@@ -42,6 +42,7 @@ public class CPlusChangeLog
         Add2_0_9_0(Changelog);
         Add2_1_0_0(Changelog);
         Add2_1_1_0(Changelog);
+        Add2_2_0_0(Changelog);
     }
 
     private (int, ChangeLogDisplayType) ConfigData()
@@ -54,7 +55,19 @@ public class CPlusChangeLog
         _configuration.Save();
     }
 
-    // i know it's ugly but luna changelog api does expect u8 !!
+
+    private static void Add2_2_0_0(Changelog log)
+        => log.NextVersion("Version 2.2.0.0"u8)
+        .RegisterImportant("Support for 7.5 and Dalamud API 15. (by Abelfreyja)"u8)
+        .RegisterHighlight("Moved plugin to Luna framework. (by Risa, initial draft by Abelfreyja, initial draft review by Exter-N)"u8)
+        .RegisterEntry("This makes many of recent quality of life changes to Penumbra and Glamourer user interface available to Customize+ users."u8, 1)
+        .RegisterImportant("While we had an extensive testing campaign there might be some issues, please report any bugs you encounter."u8, 1)
+        .RegisterEntry("Added axis colors for the columns in the bone editor. (by Abelfreyja)"u8)
+        .RegisterEntry("Fixed \"unsaved changes\" window layout breaking on different resolutions/UI scales. (by NalaPraline) (2.1.1.2)"u8)
+        .RegisterImportant("If you have used any unofficial builds of the plugin you might experience data loss, crashes or other issues. This is not an issue with the plugin and should not be reported."u8)
+        .RegisterImportant("Using synchronization plugins to sync with users using unofficial builds of the plugin might lead to crashes."u8, 1)
+        .RegisterImportant("For additional information please refer to announcements in Support Discord. (available via button in Settings page)"u8, 1);
+
     private static void Add2_1_1_0(Changelog log)
         => log.NextVersion("Version 2.1.1.0"u8)
         .RegisterEntry("Added button to export the entire profile as a single template. (by MBadea21)"u8);
