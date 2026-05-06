@@ -54,6 +54,25 @@ internal static class VersionHelper
 
     public static string GetInstallationSource(IDalamudPluginInterface pi)
     {
-        return $"{pi.SourceRepository} ({pi.AssemblyLocation.Directory?.FullName ?? "Unknown directory"})";
+        var path = pi.AssemblyLocation.Directory?.FullName;
+
+        try
+        {
+            if (!string.IsNullOrEmpty(path))
+            {
+                path = Path.GetFullPath(path);
+
+                //we don't want to expose windows username if we can
+                var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+                if (path.StartsWith(appData, StringComparison.OrdinalIgnoreCase))
+                    path = path.Replace(appData, "%AppData%", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+        catch (Exception ex)
+        {
+            path = "Unable to obtain installation directory";
+        }
+
+        return $"{pi.SourceRepository} ({path ?? "Unknown installation directory"})";
     }
 }
